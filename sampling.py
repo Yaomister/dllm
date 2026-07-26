@@ -4,7 +4,7 @@ import numpy as np
 import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer
 from datasets import load_dataset
-from schedulers import CosScheduler, LinearScheduler, ConstantScheduler, InverseScheduler
+from schedulers import CosScheduler, LinearScheduler, ConstantScheduler, InverseScheduler, scheduler 
 
 schedulers = [ConstantScheduler, LinearScheduler, CosScheduler, InverseScheduler]
 
@@ -99,7 +99,7 @@ def apply_end_think_logit_boost(logits, tokens, candidate_mask_index, context_st
         boost = end_think_logit_boost * (progress ** end_think_boost_power)
 
         token_id = get_next_sequence_token_id(
-            tokens[batch_index], position, sequence, context_start
+            tokens[batch_index], position, sequence, context_start 
         )
 
         logits[batch_index, position, token_id] += boost
@@ -108,7 +108,7 @@ def apply_end_think_logit_boost(logits, tokens, candidate_mask_index, context_st
 
 
 @torch.no_grad()
-def generate(model, prompt, attention_mask=None, steps=128, gen_length=128, block_length=128, temperature=0.,
+def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_length=128, block_length=128, temperature=0.,
              cfg_scale=0., remasking='low_confidence', mask_id=126336, logits_eos_inf=False,
              confidence_eos_eot_inf=False, end_think_token_ids=None, end_think_logit_boost=0.,
              end_think_boost_power=2., end_think_context_start=None,
@@ -236,13 +236,27 @@ def generate(model, prompt, attention_mask=None, steps=128, gen_length=128, bloc
 
             transfer_index = torch.zeros_like(x0, dtype=torch.bool, device=x0.device)
 
+            position_temperature = scheduler.get_temperature(num_block * steps + i)
+      
             for j in range(confidence.shape[0]):
-                # grab the k highest confidence positions, this is the greedy selection
-                _, select_index = torch.topk(confidence[j], k=num_transfer_tokens[j, i])
+                k = num_transfer_tokens[j, i].item()
+                if (position_temperature == 0):
+                    # grab the k highest confidence positions, this is the greedy selection
+                    _, select_index = torch.topk(confidence[j], k=k)
+                else:
+                    conf_j = confidence[j]
+                    valid = torch.isfinite(conf_j)  
+                    c = conf_j[valid]
+                    w = c ** (1.00 / position_temperature)
+                    w = w / w.sum()
+                    picked = torch.multinomial(w, k, replacement=False)
+                    select_index = valid.nonzero().flatten()[picked]
+
                 transfer_index[j, select_index] = True
             x[transfer_index] = x0[transfer_index]
 
     return x
+
             
      
 
@@ -275,13 +289,17 @@ def main():
     input_ids = encoded_outputs['input_ids'].to(device)
     attention_mask = encoded_outputs['attention_mask'].to(device)
 
-    out = generate(model, input_ids, attention_mask, steps=16, gen_length=32, block_length=32, temperature=0., cfg_scale=0., remasking='low_confidence')
+    total_steps = 16
 
-    output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
+    for SchedulerClass in schedulers:
+        out = generate(model, input_ids, SchedulerClass(1, 0, total_steps), attention_mask, steps=total_steps, gen_length=32, block_length=32, temperature=0., cfg_scale=0., remasking='low_confidence')
 
-    for o in output:
-        print(o)
-        print('-' * 50)
+        output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
+
+        print(f"For {SchedulerClass.__name__}")
+        for o in output:
+            print(o)
+            print('-' * 50)
 
 
 if __name__ == "__main__":
