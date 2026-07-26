@@ -1,5 +1,5 @@
 import math
-from scheduler import Scheduler
+from .scheduler import Scheduler
 
 
 class InverseScheduler(Scheduler):

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-def Scheduler(ABC):
+class Scheduler(ABC):
 
     def __init__(self, max_temp, min_temp, total_steps):
         self.max_temp = max_temp

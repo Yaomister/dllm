@@ -1,5 +1,5 @@
 import math
-from scheduler import Scheduler
+from .scheduler import Scheduler
 
 class CosScheduler(Scheduler):
     def get_temperature(self, step: int):
