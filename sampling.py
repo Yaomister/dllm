@@ -205,7 +205,7 @@ def generate(model, prompt, attention_mask=None, steps=128, gen_length=128, bloc
                 logits[:, :, 126081] = -torch.inf
 
             # add the gumbel noise
-            logits_with_noise = add_gumbel_noise(logits, temperature=temperature)
+            logits_with_noise = add_gumbel_noise(logits, temp=temperature)
 
             # make the selection, this holds the predicted tolken for each position
             x0 = torch.argmax(logits_with_noise, dim=-1)
@@ -247,19 +247,22 @@ def generate(model, prompt, attention_mask=None, steps=128, gen_length=128, bloc
      
 
 def main():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "mps" if torch.mps.is_available() else "cpu"
 
-    model = AutoModel.from_pretrained(pretrained_model_name_or_path="GSAI-ML/LLaDA-8B-Instruct", trust_remote_code=True, torch_dtype=torch.bfloat16).to(device).eval()
+    model = AutoModel.from_pretrained(pretrained_model_name_or_path="GSAI-ML/LLaDA-8B-Instruct", trust_remote_code=True, dtype=torch.bfloat16).to(device).eval()
 
     tokenizer = AutoTokenizer.from_pretrained('GSAI-ML/LLaDA-8B-Instruct', trust_remote_code=True)
 
-    dataset = load_dataset("openai/gsm8k", "main", split="test")
+    dataset = load_dataset("openai/gsm8k", "main", split="test").select(range(2))
 
     if tokenizer.padding_side != "left":
         tokenizer.padding_side = "left"
 
-    prompts  = [{"role": "user", "content": row['question']} for row in dataset]
+    messages  = [{"role": "user", "content": row['question']} for row in dataset]
 
+    prompts = [
+        tokenizer.apply_chat_template([m], add_generation_prompt=True, tokenize=False) for m in messages
+    ]
     assert tokenizer.pad_token_id != 126336
 
     encoded_outputs = tokenizer(
@@ -272,10 +275,10 @@ def main():
     input_ids = encoded_outputs['input_ids'].to(device)
     attention_mask = encoded_outputs['attention_mask'].to(device)
 
-    out = generate(model, input_ids, attention_mask, steps=128, gen_length=128, block_length=32, temperature=0., cfg_scale=0., remasking='low_confidence')
+    out = generate(model, input_ids, attention_mask, steps=16, gen_length=32, block_length=32, temperature=0., cfg_scale=0., remasking='low_confidence')
 
     output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
-    
+
     for o in output:
         print(o)
         print('-' * 50)
