@@ -258,7 +258,17 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
     return x
 
             
-     
+def calculate_pass_k(n, k, c):
+    # n = how many samples you generate
+    # c = how many of the samples came out correct
+    # k = how many attemps came out correct
+
+    # not enough failues to fill a subset, so guarenteed hit
+    if n - c < k:
+        return 1
+
+    return 1 - np.prod(1 - k / np.arange(n - c + 1, n + 1))
+
 
 def main():
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.mps.is_available() else "cpu"
@@ -300,6 +310,8 @@ def main():
         for o in output:
             print(o)
             print('-' * 50)
+
+    
 
 
 if __name__ == "__main__":
