@@ -1,4 +1,4 @@
-
+import re
 import torch
 import numpy as np
 import torch.nn.functional as F
@@ -17,8 +17,8 @@ def add_gumbel_noise(logits, temp):
     # the idead is we add a random amount of noise (kick) to each value and take the argmax, the maxium value after the noise is equivallent to drawing from a softmax distribution.
     if temp == 0:
         return logits
-    logits = logits.to(torch.float64)
-    noise = torch.rand_like(logits, dtype= torch.float64)
+    logits = logits.to(torch.float32)
+    noise = torch.rand_like(logits, dtype= torch.float32)
     gumbel_noise = (-torch.log(noise)) ** temp
 
     return logits.exp() / gumbel_noise
@@ -257,11 +257,18 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 
     return x
 
+def extract_inference_answer(text):
+    text = text.replace(",", "")
+    nums = re.findall(r"-?\d+", text)
+    return nums[-1] if nums[-1] else None
+
+def extract_ground_truth_answer(text):
+    return text.split("####")[-1].strip().replace(",", "")
             
 def calculate_pass_k(n, k, c):
     # n = how many samples you generate
     # c = how many of the samples came out correct
-    # k = how many attemps came out correct
+    # k = how many attemps we're asking about
 
     # not enough failues to fill a subset, so guarenteed hit
     if n - c < k:
@@ -277,7 +284,7 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained('GSAI-ML/LLaDA-8B-Instruct', trust_remote_code=True)
 
-    dataset = load_dataset("openai/gsm8k", "main", split="test").select(range(2))
+    dataset = load_dataset("openai/gsm8k", "main", split="test").select(range(50))
 
     if tokenizer.padding_side != "left":
         tokenizer.padding_side = "left"
@@ -302,16 +309,33 @@ def main():
     total_steps = 16
 
     for SchedulerClass in schedulers:
-        out = generate(model, input_ids, SchedulerClass(1, 0, total_steps), attention_mask, steps=total_steps, gen_length=32, block_length=32, temperature=0., cfg_scale=0., remasking='low_confidence')
+        samples = []
+        N = 8
 
-        output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
+        for _ in range(N):
+            out = generate(model, input_ids, SchedulerClass(1, 0, total_steps), attention_mask, steps=total_steps, gen_length=32, block_length=32, temperature=0.8, cfg_scale=0., remasking='low_confidence')
+            output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
+            samples.append(output)
 
         print(f"For {SchedulerClass.__name__}")
-        for o in output:
-            print(o)
+        for p in range(len(dataset)):
+            print(f"\nproblem {p}:")
+            for n in range(N):
+                print(f"  sample {n}: {samples[p][n] if False else samples[n][p]}")
             print('-' * 50)
 
-    
+        K = [1, 2, 4, 8]
+
+        C = []
+        for i in range(len(dataset)):
+            ground_truth_answer = extract_ground_truth_answer(dataset[i]['answer'])
+            inference_answer = [extract_inference_answer(samples[n][i]) == ground_truth_answer for n in range(N)]
+            c = sum(inference_answer)
+            C.append(c)
+
+        for k in K:
+            per_problem = [calculate_pass_k(N, k, c) for c in C]
+            print(f"pass@{k}: {np.mean(per_problem):.3f}")
 
 
 if __name__ == "__main__":
