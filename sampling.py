@@ -1,4 +1,5 @@
 import re
+import json
 import torch
 import numpy as np
 import torch.nn.functional as F
@@ -308,12 +309,20 @@ def main():
 
     total_steps = 16
 
+    results = {
+                "config": {"model": "LLaDA-8B-Instruct", "n_problems": 50, "N": 8,
+                   "T_token": 0.8, "block_length": 32, "steps": 16},
+                "schedulers": {
+    
+                }
+            }
+    
     for SchedulerClass in schedulers:
         samples = []
         N = 8
 
         for _ in range(N):
-            out = generate(model, input_ids, SchedulerClass(1, 0, total_steps), attention_mask, steps=total_steps, gen_length=32, block_length=32, temperature=0.8, cfg_scale=0., remasking='low_confidence')
+            out = generate(model, input_ids, SchedulerClass(1, 0, total_steps), attention_mask, steps=total_steps, gen_length=256, block_length=32, temperature=0.8, cfg_scale=0., remasking='low_confidence')
             output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
             samples.append(output)
 
@@ -334,8 +343,15 @@ def main():
             C.append(c)
 
         for k in K:
-            per_problem = [calculate_pass_k(N, k, c) for c in C]
-            print(f"pass@{k}: {np.mean(per_problem):.3f}")
+            results['schedulers'][SchedulerClass.__name__] = {
+                "c_counts" : C,
+                "pass_k" :{k : float(np.average([calculate_pass_k(N, k, c) for c in C])) for k in K}
+            }
+
+    with open("results.json", 'w') as f:
+        json.dump(results, f, indent=2)
+
+
 
 
 if __name__ == "__main__":
