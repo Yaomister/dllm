@@ -281,7 +281,7 @@ def calculate_pass_k(n, k, c):
 def main():
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.mps.is_available() else "cpu"
 
-    model = AutoModel.from_pretrained(pretrained_model_name_or_path="GSAI-ML/LLaDA-8B-Instruct", trust_remote_code=True, dtype=torch.bfloat16).to(device).eval()
+    model = AutoModel.from_pretrained(pretrained_model_name_or_path="GSAI-ML/LLaDA-8B-Instruct", trust_remote_code=True, torch_dtype=torch.bfloat16).to(device).eval()
 
     tokenizer = AutoTokenizer.from_pretrained('GSAI-ML/LLaDA-8B-Instruct', trust_remote_code=True)
 
