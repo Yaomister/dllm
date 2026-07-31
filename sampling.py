@@ -278,6 +278,7 @@ def calculate_pass_k(n, k, c):
     return 1 - np.prod(1 - k / np.arange(n - c + 1, n + 1))
 
 
+
 def main():
 
     print("CUDA available:", torch.cuda.is_available())
@@ -296,23 +297,6 @@ def main():
     if tokenizer.padding_side != "left":
         tokenizer.padding_side = "left"
 
-    messages  = [{"role": "user", "content": row['question']} for row in dataset]
-
-    prompts = [
-        tokenizer.apply_chat_template([m], add_generation_prompt=True, tokenize=False) for m in messages
-    ]
-    assert tokenizer.pad_token_id != 126336
-
-    encoded_outputs = tokenizer(
-        prompts,
-        add_special_tokens=False,
-        padding=True,
-        return_tensors="pt"
-    )
-
-    input_ids = encoded_outputs['input_ids'].to(device)
-    attention_mask = encoded_outputs['attention_mask'].to(device)
-
     total_steps = 256
 
     results = {
@@ -322,16 +306,36 @@ def main():
     
                 }
             }
-    
+
+    N = 8
+    BATCH = 8    
+
     for SchedulerClass in schedulers:
         print(f"starting to experiment with {SchedulerClass.__name__}")
-        samples = []
-        N = 8
+        samples = [[] for _ in range(N)]
 
-        for _ in range(N):
-            out = generate(model, input_ids, SchedulerClass(1, 0, total_steps), attention_mask, steps=total_steps, gen_length=256, block_length=32, temperature=0.8, cfg_scale=0., remasking='low_confidence')
-            output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
-            samples.append(output)
+        for start in range(0, len(dataset), BATCH):
+            chunk = dataset.select(range(start, min(len(dataset), start + BATCH)))
+            messages  = [{"role": "user", "content": row['question']} for row in chunk]
+            prompts = [
+                tokenizer.apply_chat_template([m], add_generation_prompt=True, tokenize=False) for m in messages
+            ]
+            assert tokenizer.pad_token_id != 126336
+            encoded_outputs = tokenizer(
+                prompts,
+                add_special_tokens=False,
+                padding=True,
+                return_tensors="pt"
+            )
+        
+            input_ids = encoded_outputs['input_ids'].to(device)
+            attention_mask = encoded_outputs['attention_mask'].to(device)
+            for n in range(N):
+                out = generate(model, input_ids, SchedulerClass(1, 0, total_steps), attention_mask, steps=total_steps, gen_length=256, block_length=32, temperature=0.8, cfg_scale=0., remasking='low_confidence')
+                output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
+                samples[n].extend(output)
+            torch.cuda.empty_cache()
+            print(f"  done problems {start}-{start+len(chunk)-1}", flush=True)
 
         print(f"For {SchedulerClass.__name__}")
         for p in range(len(dataset)):
@@ -355,8 +359,8 @@ def main():
                 "pass_k" :{k : float(np.average([calculate_pass_k(N, k, c) for c in C])) for k in K}
             }
 
-    with open("results.json", 'w') as f:
-        json.dump(results, f, indent=2)
+        with open("results.json", 'w') as f:
+            json.dump(results, f, indent=2)
 
 
 
