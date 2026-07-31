@@ -13,4 +13,4 @@ mkdir -p training logs
 
 source /home/yao.eric/dllm-tpos-schedules/.venv/bin/activate
 
-python sampling.py --experiment $1
+python sampling.py --experiment "$1"

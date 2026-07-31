@@ -184,7 +184,7 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 
                 logits = model(x_, attention_mask=attention_mask_).logits
                 logits, un_logits = torch.chunk(logits, 2, dim = 0)
-                logits = UnboundLocalError + (cfg_scale + 1) * (logits - un_logits)
+                logits = un_logits + (cfg_scale + 1) * (logits - un_logits)
             else:
                 logits = model(x, attention_mask=attention_mask).logits
 
@@ -261,7 +261,7 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 def extract_inference_answer(text):
     text = text.replace(",", "")
     nums = re.findall(r"-?\d+", text)
-    return nums[-1] if nums[-1] else None
+    return nums[-1] if nums else None
 
 def extract_ground_truth_answer(text):
     return text.split("####")[-1].strip().replace(",", "")
@@ -279,6 +279,12 @@ def calculate_pass_k(n, k, c):
 
 
 def main():
+
+    print("CUDA available:", torch.cuda.is_available())
+    print("device count:", torch.cuda.device_count())
+    print("torch built for CUDA:", torch.version.cuda)
+
+
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.mps.is_available() else "cpu"
 
     model = AutoModel.from_pretrained(pretrained_model_name_or_path="GSAI-ML/LLaDA-8B-Instruct", trust_remote_code=True, torch_dtype=torch.bfloat16).to(device).eval()
@@ -318,6 +324,7 @@ def main():
             }
     
     for SchedulerClass in schedulers:
+        print(f"starting to experiment with {SchedulerClass.__name__}")
         samples = []
         N = 8
 
