@@ -240,14 +240,15 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
       
             for j in range(confidence.shape[0]):
                 k = num_transfer_tokens[j, i].item()
-                if (position_temperature == 0):
+                if (position_temperature <= 1e-6):
                     # grab the k highest confidence positions, this is the greedy selection
                     _, select_index = torch.topk(confidence[j], k=k)
                 else:
                     conf_j = confidence[j]
                     valid = torch.isfinite(conf_j)  
-                    c = conf_j[valid]
+                    c = conf_j[valid].clamp_min(1e-9) 
                     w = c ** (1.00 / position_temperature)
+                    w = torch.nan_to_num(w)
                     w = w / w.sum()
                     picked = torch.multinomial(w, k, replacement=False)
                     select_index = valid.nonzero().flatten()[picked]
@@ -312,7 +313,7 @@ def main():
     input_ids = encoded_outputs['input_ids'].to(device)
     attention_mask = encoded_outputs['attention_mask'].to(device)
 
-    total_steps = 16
+    total_steps = 256
 
     results = {
                 "config": {"model": "LLaDA-8B-Instruct", "n_problems": 50, "N": 8,
