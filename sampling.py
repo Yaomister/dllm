@@ -20,9 +20,8 @@ def add_gumbel_noise(logits, temp):
         return logits
     logits = logits.to(torch.float32)
     noise = torch.rand_like(logits, dtype= torch.float32)
-    gumbel_noise = (-torch.log(noise)) ** temp
-
-    return logits.exp() / gumbel_noise
+    gumbel_noise = (-torch.log(-torch.log(noise))) * temp
+    return logits + gumbel_noise
 
 
 def get_num_transfer_tokens(mask_index, steps):
