@@ -36,7 +36,6 @@ def get_num_transfer_tokens(mask_index, steps):
     # if there is an uneven amount
     remainder = mask_num % steps
 
-
     # a tensor where the value at each position represents the number of tokens you need to fill at each step
     num_transfer_tokens = torch.zeros(mask_num.size(0), steps, device=mask_index.device, dtype=torch.int64) + base
 
@@ -246,10 +245,13 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
                 else:
                     conf_j = confidence[j]
                     valid = torch.isfinite(conf_j)  
+                    valid_index = valid.nonzero().flatten()
                     c = conf_j[valid].clamp_min(1e-9) 
                     w = c ** (1.00 / position_temperature)
                     w = torch.nan_to_num(w)
                     w = w / w.sum()
+                    # in case theres not enough to fix
+                    k = min(k, valid_index.numel())
                     picked = torch.multinomial(w, k, replacement=False)
                     select_index = valid.nonzero().flatten()[picked]
 
