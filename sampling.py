@@ -249,11 +249,15 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
                     c = conf_j[valid].clamp_min(1e-9) 
                     w = c ** (1.00 / position_temperature)
                     w = torch.nan_to_num(w)
-                    w = w / w.sum()
-                    # in case theres not enough to fix
                     k = min(k, valid_index.numel())
-                    picked = torch.multinomial(w, k, replacement=False)
-                    select_index = valid.nonzero().flatten()[picked]
+                    if (w.sum() == 0):
+                        _, select_index = torch.topk(conf_j, k = k)
+                    else:
+
+                        w = w / w.sum()
+                        # in case theres not enough to fix
+                        picked = torch.multinomial(w, k, replacement=False)
+                        select_index = valid.nonzero().flatten()[picked]
 
                 transfer_index[j, select_index] = True
             x[transfer_index] = x0[transfer_index]
@@ -355,7 +359,7 @@ def main():
             c = sum(inference_answer)
             C.append(c)
 
-        for k in K:
+        for _ in K:
             results['schedulers'][SchedulerClass.__name__] = {
                 "c_counts" : C,
                 "pass_k" :{k : float(np.average([calculate_pass_k(N, k, c) for c in C])) for k in K}
