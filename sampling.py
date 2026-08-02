@@ -265,9 +265,8 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
     return x
 
 def extract_inference_answer(text):
-    text = text.replace(",", "")
-    nums = re.findall(r"-?\d+", text)
-    return nums[-1] if nums else None
+    m = re.findall(r"\\boxed\{([^}]*)\}", text)
+    return m[-1].strip() if m else None
 
 def extract_ground_truth_answer(text):
     return text.split("####")[-1].strip().replace(",", "")
@@ -298,7 +297,7 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained('GSAI-ML/LLaDA-8B-Instruct', trust_remote_code=True)
 
-    dataset = load_dataset("openai/gsm8k", "main", split="test").select(range(50))
+    dataset = load_dataset("HuggingFaceH4/MATH-500", split="test").select(range(50))
 
     if tokenizer.padding_side != "left":
         tokenizer.padding_side = "left"
@@ -307,7 +306,7 @@ def main():
 
     results = {
                 "config": {"model": "LLaDA-8B-Instruct", "n_problems": 50, "N": 8,
-                   "T_token": 0.8, "block_length": 32, "steps": 16},
+                   "T_token": 0.8, "block_length": 32, "steps": 256},
                 "schedulers": {
     
                 }
@@ -322,7 +321,7 @@ def main():
 
         for start in range(0, len(dataset), BATCH):
             chunk = dataset.select(range(start, min(len(dataset), start + BATCH)))
-            messages  = [{"role": "user", "content": row['question']} for row in chunk]
+            messages  = [{"role": "user", "content": row['problem']} for row in chunk]
             prompts = [
                 tokenizer.apply_chat_template([m], add_generation_prompt=True, tokenize=False) for m in messages
             ]
@@ -354,7 +353,8 @@ def main():
 
         C = []
         for i in range(len(dataset)):
-            ground_truth_answer = extract_ground_truth_answer(dataset[i]['answer'])
+            # ground_truth_answer = extract_ground_truth_answer(dataset[i]['answer'])
+            ground_truth_answer = dataset[i]['answer']
             inference_answer = [extract_inference_answer(samples[n][i]) == ground_truth_answer for n in range(N)]
             c = sum(inference_answer)
             C.append(c)
