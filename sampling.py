@@ -214,7 +214,7 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
                 p = F.softmax(logits, dim=-1)
                 top_two = torch.topk(p, 2, dim=-1).values
                 # assign real confidence scores
-                x0_p = top_two[..., 0] = top_two[..., 1]
+                x0_p = top_two[..., 0] - top_two[..., 1]
             elif remasking == 'random':
                 # assign random confidence scores
                 x0_p = torch.rand((x0.shape[0], x0.shape[1]), device=x0.device)
