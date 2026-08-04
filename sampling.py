@@ -331,6 +331,11 @@ def main():
 
     K = [1, 2, 4, 8]
 
+    for i in range(3):
+        print("PRED:", extract_inference_answer(samples[0][i]))   # problem i, sample 0
+        print("GOLD:", dataset[i]['answer'])
+        print("MATCH:", extract_inference_answer(samples[0][i]) == dataset[i]['answer'])
+
     C = []
     for i in range(len(dataset)):
         # ground_truth_answer = extract_ground_truth_answer(dataset[i]['answer'])
