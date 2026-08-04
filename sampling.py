@@ -7,7 +7,6 @@ from transformers import AutoModel, AutoTokenizer
 from datasets import load_dataset
 from schedulers import CosScheduler, LinearScheduler, ConstantScheduler, InverseScheduler, scheduler 
 
-schedulers = [ConstantScheduler, LinearScheduler, CosScheduler, InverseScheduler]
 
 
 
@@ -206,7 +205,6 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
             # add the gumbel noise
             logits_with_noise = add_gumbel_noise(logits, temp=temperature)
 
-            # make the selection, this holds the predicted tolken for each position
             x0 = torch.argmax(logits_with_noise, dim=-1)
 
             if confidence_eos_eot_inf:
@@ -214,10 +212,9 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
             
             if remasking == "low_confidence":
                 p = F.softmax(logits, dim=-1)
+                top_two = torch.topk(p, 2, dim=-1).values
                 # assign real confidence scores
-                x0_p = torch.squeeze(
-                    torch.gather(p, dim=-1, index=torch.unsqueeze(x0, -1)), -1
-                )
+                x0_p = top_two[..., 0] = top_two[..., 1]
             elif remasking == 'random':
                 # assign random confidence scores
                 x0_p = torch.rand((x0.shape[0], x0.shape[1]), device=x0.device)
@@ -235,29 +232,12 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 
             transfer_index = torch.zeros_like(x0, dtype=torch.bool, device=x0.device)
 
-            position_temperature = scheduler.get_temperature(num_block * steps + i)
       
             for j in range(confidence.shape[0]):
                 k = num_transfer_tokens[j, i].item()
-                if (position_temperature <= 1e-6):
-                    # grab the k highest confidence positions, this is the greedy selection
-                    _, select_index = torch.topk(confidence[j], k=k)
-                else:
-                    conf_j = confidence[j]
-                    valid = torch.isfinite(conf_j)  
-                    valid_index = valid.nonzero().flatten()
-                    c = conf_j[valid].clamp_min(1e-9) 
-                    w = c ** (1.00 / position_temperature)
-                    w = torch.nan_to_num(w)
-                    k = min(k, valid_index.numel())
-                    if (w.sum() == 0):
-                        _, select_index = torch.topk(conf_j, k = k)
-                    else:
-
-                        w = w / w.sum()
-                        # in case theres not enough to fix
-                        picked = torch.multinomial(w, k, replacement=False)
-                        select_index = valid.nonzero().flatten()[picked]
+ 
+                # grab the k highest confidence positions, this is the greedy selection
+                _, select_index = torch.topk(confidence[j], k=k, largest=False)
 
                 transfer_index[j, select_index] = True
             x[transfer_index] = x0[transfer_index]
@@ -293,7 +273,7 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.mps.is_available() else "cpu"
 
-    model = AutoModel.from_pretrained(pretrained_model_name_or_path="GSAI-ML/LLaDA-8B-Instruct", trust_remote_code=True, torch_dtype=torch.bfloat16).to(device).eval()
+    model = AutoModel.from_pretrained(pretrained_model_name_or_path="GSAI-ML/LLaDA-8B-Instruct", trust_remote_code=True, dtype=torch.bfloat16).to(device).eval()
 
     tokenizer = AutoTokenizer.from_pretrained('GSAI-ML/LLaDA-8B-Instruct', trust_remote_code=True)
 
@@ -307,7 +287,7 @@ def main():
     results = {
                 "config": {"model": "LLaDA-8B-Instruct", "n_problems": 50, "N": 8,
                    "T_token": 0.8, "block_length": 32, "steps": 256},
-                "schedulers": {
+                "data": {
     
                 }
             }
@@ -315,58 +295,58 @@ def main():
     N = 8
     BATCH = 8    
 
-    for SchedulerClass in schedulers:
-        print(f"starting to experiment with {SchedulerClass.__name__}")
-        samples = [[] for _ in range(N)]
+    print(f"Starting experiments")
+    samples = [[] for _ in range(N)]
 
-        for start in range(0, len(dataset), BATCH):
-            chunk = dataset.select(range(start, min(len(dataset), start + BATCH)))
-            messages  = [{"role": "user", "content": row['problem']} for row in chunk]
-            prompts = [
-                tokenizer.apply_chat_template([m], add_generation_prompt=True, tokenize=False) for m in messages
-            ]
-            assert tokenizer.pad_token_id != 126336
-            encoded_outputs = tokenizer(
-                prompts,
-                add_special_tokens=False,
-                padding=True,
-                return_tensors="pt"
-            )
-        
-            input_ids = encoded_outputs['input_ids'].to(device)
-            attention_mask = encoded_outputs['attention_mask'].to(device)
-            for n in range(N):
-                out = generate(model, input_ids, SchedulerClass(1, 0, total_steps), attention_mask, steps=total_steps, gen_length=256, block_length=32, temperature=0.8, cfg_scale=0., remasking='low_confidence')
-                output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
-                samples[n].extend(output)
-            torch.cuda.empty_cache()
-            print(f"  done problems {start}-{start+len(chunk)-1}", flush=True)
+    for start in range(0, len(dataset), BATCH):
+        chunk = dataset.select(range(start, min(len(dataset), start + BATCH)))
+        messages  = [{"role": "user", "content": row['problem']} for row in chunk]
+        prompts = [
+            tokenizer.apply_chat_template([m], add_generation_prompt=True, tokenize=False) for m in messages
+        ]
+        assert tokenizer.pad_token_id != 126336
+        encoded_outputs = tokenizer(
+            prompts,
+            add_special_tokens=False,
+            padding=True,
+            return_tensors="pt"
+        )
 
-        print(f"For {SchedulerClass.__name__}")
-        for p in range(len(dataset)):
-            print(f"\nproblem {p}:")
-            for n in range(N):
-                print(f"  sample {n}: {samples[p][n] if False else samples[n][p]}")
-            print('-' * 50)
+        print('experiment is still running...')
+    
+        input_ids = encoded_outputs['input_ids'].to(device)
+        attention_mask = encoded_outputs['attention_mask'].to(device)
+        for n in range(N):
+            out = generate(model, input_ids, (1, 0, total_steps), attention_mask, steps=total_steps, gen_length=256, block_length=32, temperature=0.8, cfg_scale=0., remasking='low_confidence')
+            output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
+            samples[n].extend(output)
+        torch.cuda.empty_cache()
+        print(f"  done problems {start}-{start+len(chunk)-1}", flush=True)
 
-        K = [1, 2, 4, 8]
+    for p in range(len(dataset)):
+        print(f"\nproblem {p}:")
+        for n in range(N):
+            print(f"  sample {n}: {samples[p][n] if False else samples[n][p]}")
+        print('-' * 50)
 
-        C = []
-        for i in range(len(dataset)):
-            # ground_truth_answer = extract_ground_truth_answer(dataset[i]['answer'])
-            ground_truth_answer = dataset[i]['answer']
-            inference_answer = [extract_inference_answer(samples[n][i]) == ground_truth_answer for n in range(N)]
-            c = sum(inference_answer)
-            C.append(c)
+    K = [1, 2, 4, 8]
 
-        for _ in K:
-            results['schedulers'][SchedulerClass.__name__] = {
-                "c_counts" : C,
-                "pass_k" :{k : float(np.average([calculate_pass_k(N, k, c) for c in C])) for k in K}
-            }
+    C = []
+    for i in range(len(dataset)):
+        # ground_truth_answer = extract_ground_truth_answer(dataset[i]['answer'])
+        ground_truth_answer = dataset[i]['answer']
+        inference_answer = [extract_inference_answer(samples[n][i]) == ground_truth_answer for n in range(N)]
+        c = sum(inference_answer)
+        C.append(c)
 
-        with open("results.json", 'w') as f:
-            json.dump(results, f, indent=2)
+    for _ in K:
+        results['data'] =  {
+            "c_counts" : C,
+            "pass_k" :{k : float(np.average([calculate_pass_k(N, k, c) for c in C])) for k in K}
+        }
+
+    with open("results.json", 'w') as f:
+        json.dump(results, f, indent=2)
 
 
 
