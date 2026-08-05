@@ -334,7 +334,7 @@ def main():
     for i in range(min(3, len(samples[0]))):
         print("PRED:", parse(samples[0][i]))   # problem i, sample 0
         print("GOLD:", dataset[i]['answer'])
-        print("MATCH:", verify(parse(samples[0][i])), parse(dataset[i]['answer']))
+        print("MATCH:", verify(parse(samples[0][i]), parse(dataset[i]['answer'])))
 
     C = []
     for i in range(len(dataset)):
