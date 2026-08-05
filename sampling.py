@@ -3,8 +3,9 @@ import json
 import torch
 import numpy as np
 import torch.nn.functional as F
-from transformers import AutoModel, AutoTokenizer
+from math_verify import parse, verify
 from datasets import load_dataset
+from transformers import AutoModel, AutoTokenizer
 from schedulers import CosScheduler, LinearScheduler, ConstantScheduler, InverseScheduler, scheduler 
 
 
@@ -249,12 +250,6 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 
     return x
 
-def extract_inference_answer(text):
-    m = re.findall(r"\\boxed\{([^}]*)\}", text)
-    return m[-1].strip() if m else None
-
-def extract_ground_truth_answer(text):
-    return text.split("####")[-1].strip().replace(",", "")
             
 def calculate_pass_k(n, k, c):
     # n = how many samples you generate
@@ -336,16 +331,15 @@ def main():
 
     K = [1, 2, 4, 8]
 
-    for i in range(3):
-        print("PRED:", extract_inference_answer(samples[0][i]))   # problem i, sample 0
+    for i in range(min(3, len(samples[0]))):
+        print("PRED:", parse(samples[0][i]))   # problem i, sample 0
         print("GOLD:", dataset[i]['answer'])
-        print("MATCH:", extract_inference_answer(samples[0][i]) == dataset[i]['answer'])
+        print("MATCH:", verify(parse(samples[0][i])), parse(dataset[i]['answer']))
 
     C = []
     for i in range(len(dataset)):
-        # ground_truth_answer = extract_ground_truth_answer(dataset[i]['answer'])
         ground_truth_answer = dataset[i]['answer']
-        inference_answer = [extract_inference_answer(samples[n][i]) == ground_truth_answer for n in range(N)]
+        inference_answer = [verify(parse(samples[n][i]), parse(ground_truth_answer)) for n in range(N)]
         c = sum(inference_answer)
         C.append(c)
 
