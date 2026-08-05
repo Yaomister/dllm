@@ -237,7 +237,12 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
                 k = num_transfer_tokens[j, i].item()
  
                 # grab the k highest confidence positions, this is the greedy selection
-                _, select_index = torch.topk(confidence[j], k=k, largest=False)
+
+                conf_j = confidence[j]
+                valid_indexes = torch.isfinite(conf_j).nonzero().flatten()
+                kk = min(k, valid_indexes.numel())
+                _, s = torch.topk(conf_j[valid_indexes], k=kk, largest=False)
+                select_index = valid_indexes[s]
 
                 transfer_index[j, select_index] = True
             x[transfer_index] = x0[transfer_index]
@@ -277,7 +282,7 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained('GSAI-ML/LLaDA-8B-Instruct', trust_remote_code=True)
 
-    dataset = load_dataset("HuggingFaceH4/MATH-500", split="test").select(range(50))
+    dataset = load_dataset("HuggingFaceH4/MATH-500", split="test").select(range(2))
 
     if tokenizer.padding_side != "left":
         tokenizer.padding_side = "left"
