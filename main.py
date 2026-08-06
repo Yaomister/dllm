@@ -326,7 +326,8 @@ def main(seed, dataset_name):
         samples = [[] for _ in range(N)]
         for start in range(0, len(dataset), BATCH):
             chunk = dataset.select(range(start, min(len(dataset), start + BATCH)))
-            messages  = [{"role": "user", "content": row['problem'] if not method else row['question'] } for row in chunk]
+            field = "problem" if dataset_name == "math" else "question"
+            messages = [{"role": "user", "content": row[field]} for row in chunk]            
             prompts = [
                 tokenizer.apply_chat_template([m], add_generation_prompt=True, tokenize=False) for m in messages
             ]
