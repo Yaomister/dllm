@@ -9,8 +9,16 @@
 
 cd $SLURM_SUBMIT_DIR
 
+SEEDS=(0 1 2)
+DATASETS=(math gsm8k)
+
+s=$(( rem / 2 ))         # 0-2
+d=$(( rem % 2 ))         # 0-1
+
 mkdir -p training logs
 
 source /home/yao.eric/dllm-tpos-schedules/.venv/bin/activate
 
-python main.py --experiment "$1"
+python -u main.py \
+  --seed ${SEEDS[$s]} \
+  --dataset ${DATASETS[$d]}
