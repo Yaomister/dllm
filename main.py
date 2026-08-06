@@ -221,8 +221,8 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
                 x0_p = top_two[..., 0] - top_two[..., 1]
             elif remasking == 'scheduler':
                 # assign random confidence scores
-                x0_o = F.softmax(logits, dim=-1)
-                x0_p = torch.rand((x0.shape[0], x0.shape[1]), device=x0.device)
+                p = F.softmax(logits, dim=-1)
+                x0_p = p.max(dim=-1).values 
             else:
                 raise NotImplementedError(remasking)
 
@@ -237,24 +237,23 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 
             transfer_index = torch.zeros_like(x0, dtype=torch.bool, device=x0.device)
 
-            position_temperature = scheduler.get_temperature(num_block * steps + i)
-
+            position_temperature = scheduler.get_temperature(num_block * steps + i) if remasking == 'scheduler' else None
 
             for j in range(confidence.shape[0]):
                 k = num_transfer_tokens[j, i].item()
                 # grab the k highest confidence positions, this is the greedy selection
                 conf_j = confidence[j]
-                if (position_temperature <= 1e-6):
-                    _, s = torch.topk(conf_j, k)
-
-                else:
-                    valid_indexes = torch.isfinite(conf_j).nonzero().flatten()
-                    k = min(k, valid_indexes.numel())
-                    if remasking == "margin":
-                        _, s = torch.topk(conf_j[valid_indexes], k=k, largest=False)
-                        selected_index = valid_indexes[s]
-                    elif remasking == "scheduler":
-                        w = conf_j ** (1/ position_temperature)
+          
+                valid_indexes = torch.isfinite(conf_j).nonzero().flatten()
+                k = min(k, valid_indexes.numel())
+                if remasking == "margin":
+                    _, s = torch.topk(conf_j[valid_indexes], k=k, largest=False)
+                    selected_index = valid_indexes[s]
+                elif remasking == "scheduler":
+                    if (position_temperature <= 1e-6):
+                        _, selected_index = torch.topk(conf_j, k)
+                    else:
+                        w = conf_j[valid_indexes] ** (1 / position_temperature)
                         w = torch.nan_to_num(w)
                         if (w.sum() == 0):
                             _, selected_index = torch.topk(conf_j, k = k)
@@ -263,8 +262,6 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
                             picked = torch.multinomial(w, k, replacement=False)
                             selected_index  = valid_indexes[picked]
                     
-                
-
                 transfer_index[j, selected_index] = True
             x[transfer_index] = x0[transfer_index]
 
@@ -283,6 +280,14 @@ def calculate_pass_k(n, k, c):
     return 1 - np.prod(1 - k / np.arange(n - c + 1, n + 1))
 
 
+def grade(prediction, answer, dataset_name):
+    if dataset_name == "math":
+        return verify(parse(prediction), parse(answer))
+    else:
+        correct_answer = answer.split("####")[-1].strip().replace(",", "")
+        hit = re.findall(r"-?\d+", prediction.replace(",", ""))
+        return hit and hit[-1] == correct_answer
+
 
 def main(seed, dataset_name):
 
@@ -297,8 +302,8 @@ def main(seed, dataset_name):
     model = AutoModel.from_pretrained(pretrained_model_name_or_path="GSAI-ML/LLaDA-8B-Instruct", trust_remote_code=True, torch_dtype=torch.bfloat16).to(device).eval()
 
     tokenizer = AutoTokenizer.from_pretrained('GSAI-ML/LLaDA-8B-Instruct', trust_remote_code=True)
-    dataset = load_dataset("HuggingFaceH4/MATH-500", split="test") if dataset_name == "math" else load_dataset("huggingFaceH4/GSM8k", split="test")
-
+    dataset = load_dataset("HuggingFaceH4/MATH-500", split="test") if dataset_name == "math" else load_dataset("openai/gsm8k", "main", split="test")
+    dataset = dataset.select(range(100))
 
     if tokenizer.padding_side != "left":
         tokenizer.padding_side = "left"
@@ -306,7 +311,7 @@ def main(seed, dataset_name):
     total_steps = 256
 
     results = {
-                "config": {"model": "LLaDA-8B-Instruct", "n_problems": 50, "N": 8,
+                "config": {"model": "LLaDA-8B-Instruct", "N": 8,
                    "T_token": 0.8, "block_length": 32, "steps": 256},
                 "method": {
     
@@ -317,11 +322,11 @@ def main(seed, dataset_name):
     BATCH = 8    
 
     print(f"Starting experiments")
-    samples = [[] for _ in range(N)]
     for method in methods:
+        samples = [[] for _ in range(N)]
         for start in range(0, len(dataset), BATCH):
             chunk = dataset.select(range(start, min(len(dataset), start + BATCH)))
-            messages  = [{"role": "user", "content": row['problem']} for row in chunk]
+            messages  = [{"role": "user", "content": row['problem'] if not method else row['question'] } for row in chunk]
             prompts = [
                 tokenizer.apply_chat_template([m], add_generation_prompt=True, tokenize=False) for m in messages
             ]
@@ -338,7 +343,8 @@ def main(seed, dataset_name):
             input_ids = encoded_outputs['input_ids'].to(device)
             attention_mask = encoded_outputs['attention_mask'].to(device)
             for n in range(N):
-                out = generate(model, input_ids, method, (1, 0, total_steps), attention_mask, steps=total_steps, gen_length=256, block_length=32, temperature=0.8, cfg_scale=0., remasking='margin' if method is None else "scheduler")
+                scheduler_obj = method(1, 0, total_steps) if method is not None else None
+                out = generate(model, input_ids, scheduler_obj, attention_mask, steps=total_steps, gen_length=256, block_length=32, temperature=0.8, cfg_scale=0., remasking='margin' if method is None else "scheduler")
                 output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
                 samples[n].extend(output)
             torch.cuda.empty_cache()
@@ -352,20 +358,16 @@ def main(seed, dataset_name):
 
         K = [1, 2, 4, 8]
 
-        for i in range(min(3, len(samples[0]))):
-            print("Prediction:", parse(samples[0][i]))   # problem i, sample 0
-            print("Actual Answer:", dataset[i]['answer'])
-            print("MATCH:", verify(parse(samples[0][i]), parse(dataset[i]['answer'])))
 
         C = []
         for i in range(len(dataset)):
             ground_truth_answer = dataset[i]['answer']
-            inference_answer = [verify(parse(samples[n][i]), parse(ground_truth_answer)) for n in range(N)]
+            inference_answer = [grade(samples[n][i], ground_truth_answer) for n in range(N)]
             c = sum(inference_answer)
             C.append(c)
 
         for _ in K:
-            results[scheduler.__name__] =  {
+            results[method.__name__ if method else "margin"] =  {
                 "c_counts" : C,
                 "pass_k" :{k : float(np.average([calculate_pass_k(N, k, c) for c in C])) for k in K}
             }
@@ -379,8 +381,8 @@ def main(seed, dataset_name):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", required=True)
+    parser.add_argument("--seed", type=int, required=True)
     parser.add_argument('--dataset', required=True)
     args = parser.parse_args()
 
-    main(args.dataset, args.seed)
+    main(args.seed, args.dataset)
