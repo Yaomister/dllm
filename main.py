@@ -363,7 +363,7 @@ def main(seed, dataset_name):
         C = []
         for i in range(len(dataset)):
             ground_truth_answer = dataset[i]['answer']
-            inference_answer = [grade(samples[n][i], ground_truth_answer) for n in range(N)]
+            inference_answer = [grade(samples[n][i], ground_truth_answer, dataset_name=dataset_name) for n in range(N)]
             c = sum(inference_answer)
             C.append(c)
 
