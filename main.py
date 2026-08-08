@@ -289,7 +289,7 @@ def grade(prediction, answer, dataset_name):
         return hit and hit[-1] == correct_answer
 
 
-def main(seed, dataset_name):
+def main(seed, dataset_name, batch, batch_size):
 
     print("CUDA available:", torch.cuda.is_available())
     print("device count:", torch.cuda.device_count())
@@ -303,6 +303,7 @@ def main(seed, dataset_name):
 
     tokenizer = AutoTokenizer.from_pretrained('GSAI-ML/LLaDA-8B-Instruct', trust_remote_code=True)
     dataset = load_dataset("HuggingFaceH4/MATH-500", split="test") if dataset_name == "math" else load_dataset("openai/gsm8k", "main", split="test")
+    problem_indices = list(range(len(dataset)))[batch::batch_size]
     dataset = dataset.select(range(100))
 
     if tokenizer.padding_side != "left":
@@ -367,13 +368,13 @@ def main(seed, dataset_name):
             c = sum(inference_answer)
             C.append(c)
 
-        for _ in K:
-            results[method.__name__ if method else "margin"] =  {
-                "c_counts" : C,
-                "pass_k" :{k : float(np.average([calculate_pass_k(N, k, c) for c in C])) for k in K}
-            }
+        name = method.__name__ if method else "margin"
+        results["method"][name] = {
+            "problem_indices": problem_indices,
+            "c_counts": C,
+        }
 
-    with open(f"results_{seed}.json", 'w') as f:
+    with open(f"results_{dataset_name}_{seed}_batch{batch}.json", 'w') as f:
         json.dump(results, f, indent=2)
 
 
@@ -384,6 +385,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument('--dataset', required=True)
+    parser.add_argument("--batch", type=int, default=0)
+    parser.add_argument("--batch-size", type=int, default=1)
     args = parser.parse_args()
-
-    main(args.seed, args.dataset)
+    
+    main(args.seed, args.dataset, args.batch, args.batch_size)

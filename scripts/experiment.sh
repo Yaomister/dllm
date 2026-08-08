@@ -9,11 +9,18 @@
 
 cd $SLURM_SUBMIT_DIR
 
+NUM_BATCHES = 4
 SEEDS=(0 1 2)
 DATASETS=(math gsm8k)
 
-s=$(( rem / 2 ))         # 0-2
-d=$(( rem % 2 ))         # 0-1
+idx=$SLURM_ARRAY_TASK_ID
+batch=$(( idx % NUM_BATCHES ))
+rest=$(( idx / NUM_BATCHES ))
+d=$(( rest % 2 ))
+s=$(( rest / 2 ))
+
+
+
 
 mkdir -p training logs
 
@@ -21,4 +28,6 @@ source /home/yao.eric/dllm-tpos-schedules/.venv/bin/activate
 
 python -u main.py \
   --seed ${SEEDS[$s]} \
-  --dataset ${DATASETS[$d]}
+  --dataset ${DATASETS[$d]} \
+  --shard $batch \
+  --num-shards $NUM_BATCHES
