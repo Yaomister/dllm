@@ -3,7 +3,7 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=32G
+#SBATCH --mem=16G
 #SBATCH --time=08:00:00
 #SBATCH --output=logs/train_%j.out
 #SBATCH --array=0-23%4
