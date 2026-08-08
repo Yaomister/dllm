@@ -303,8 +303,9 @@ def main(seed, dataset_name, batch, batch_size):
 
     tokenizer = AutoTokenizer.from_pretrained('GSAI-ML/LLaDA-8B-Instruct', trust_remote_code=True)
     dataset = load_dataset("HuggingFaceH4/MATH-500", split="test") if dataset_name == "math" else load_dataset("openai/gsm8k", "main", split="test")
-    problem_indices = list(range(len(dataset)))[batch::batch_size]
     dataset = dataset.select(range(100))
+    problem_indices = list(range(len(dataset)))[batch::batch_size]
+    dataset = dataset.select(problem_indices)
 
     if tokenizer.padding_side != "left":
         tokenizer.padding_side = "left"
