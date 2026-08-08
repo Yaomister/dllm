@@ -29,5 +29,5 @@ source /home/yao.eric/dllm-tpos-schedules/.venv/bin/activate
 python -u main.py \
   --seed ${SEEDS[$s]} \
   --dataset ${DATASETS[$d]} \
-  --shard $batch \
-  --num-shards $NUM_BATCHES
+  --batch $batch \
+  --batch-size $NUM_BATCHES
