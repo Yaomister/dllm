@@ -9,7 +9,7 @@
 
 cd $SLURM_SUBMIT_DIR
 
-NUM_BATCHES = 4
+NUM_BATCHES=4
 SEEDS=(0 1 2)
 DATASETS=(math gsm8k)
 
