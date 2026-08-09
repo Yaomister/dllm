@@ -3,9 +3,9 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=16G
+#SBATCH --mem=48G
 #SBATCH --time=08:00:00
-#SBATCH --output=logs/train_%j.out
+#SBATCH --output=logs/train_%A_%a.out
 #SBATCH --array=0-23%4
 
 cd $SLURM_SUBMIT_DIR
@@ -20,10 +20,7 @@ rest=$(( idx / NUM_BATCHES ))
 d=$(( rest % 2 ))
 s=$(( rest / 2 ))
 
-
-
-
-mkdir -p training logs
+mkdir -p logs
 
 source /home/yao.eric/dllm-tpos-schedules/.venv/bin/activate
 
