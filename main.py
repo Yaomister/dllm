@@ -11,7 +11,13 @@ from schedulers import CosScheduler, LinearScheduler, ConstantScheduler, Inverse
 
 
 methods = [
-    CosScheduler, LinearScheduler, ConstantScheduler, InverseScheduler, None
+    ("Greedy",    ConstantScheduler, (0.0, 0.0)),
+    ("ConstantHalf", ConstantScheduler, (0.5, 0.5)),
+    ("Constant",   ConstantScheduler, (1.0, 1.0)),
+    ("Linear",        LinearScheduler,   (1.0, 0.0)),
+    ("Cos",           CosScheduler,      (1.0, 0.0)),
+    ("Inverse",       InverseScheduler,  (1.0, 0.0)),
+    ("margin",        None,              None),
 ]
 
 def add_gumbel_noise(logits, temp):
@@ -267,17 +273,7 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 
     return x
 
-            
-def calculate_pass_k(n, k, c):
-    # n = how many samples you generate
-    # c = how many of the samples came out correct
-    # k = how many attemps we're asking about
-
-    # not enough failues to fill a subset, so guarenteed hit
-    if n - c < k:
-        return 1
-
-    return 1 - np.prod(1 - k / np.arange(n - c + 1, n + 1))
+        
 
 
 def grade(prediction, answer, dataset_name):
@@ -324,7 +320,9 @@ def main(seed, dataset_name, batch, batch_size):
     BATCH = 8    
 
     print(f"Starting experiments")
-    for method in methods:
+    for name, cls, args in methods:
+        scheduler_obj = cls(args[0], args[1], total_steps) if cls else None
+        remasking = 'margin' if cls is None else 'scheduler'
         samples = [[] for _ in range(N)]
         for start in range(0, len(dataset), BATCH):
             chunk = dataset.select(range(start, min(len(dataset), start + BATCH)))
@@ -346,7 +344,7 @@ def main(seed, dataset_name, batch, batch_size):
             input_ids = encoded_outputs['input_ids'].to(device)
             attention_mask = encoded_outputs['attention_mask'].to(device)
             for n in range(N):
-                scheduler_obj = method(1, 0, total_steps) if method is not None else None
+                scheduler_obj = remasking(1, 0, total_steps) if remasking is not None else None
                 out = generate(model, input_ids, scheduler_obj, attention_mask, steps=total_steps, gen_length=256, block_length=32, temperature=0.8, cfg_scale=0., remasking='margin' if method is None else "scheduler")
                 output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
                 samples[n].extend(output)
@@ -359,8 +357,6 @@ def main(seed, dataset_name, batch, batch_size):
                 print(f"  sample {n}: {samples[p][n] if False else samples[n][p]}")
             print('-' * 50)
 
-        K = [1, 2, 4, 8]
-
 
         C = []
         for i in range(len(dataset)):
@@ -369,7 +365,6 @@ def main(seed, dataset_name, batch, batch_size):
             c = sum(inference_answer)
             C.append(c)
 
-        name = method.__name__ if method else "margin"
         results["method"][name] = {
             "problem_indices": problem_indices,
             "c_counts": C,
