@@ -24,6 +24,8 @@ mkdir -p logs
 
 source /home/yao.eric/dllm-tpos-schedules/.venv/bin/activate
 
+export HF_HOME=/scratch/yao.eric/hf_cache/huggingface
+
 python -u main.py \
   --seed ${SEEDS[$s]} \
   --dataset ${DATASETS[$d]} \
