@@ -17,7 +17,9 @@ methods = [
     ("Linear",        LinearScheduler,   (1.0, 0.0)),
     ("Cos",           CosScheduler,      (1.0, 0.0)),
     ("Inverse",       InverseScheduler,  (1.0, 0.0)),
-    ("margin",        None,              None),
+    ("Margin",        None,              None),
+    ("Autoregressive",        None,              None),
+    ("Random", ConstantScheduler, (1e6, 1e6)),
 ]
 
 def add_gumbel_noise(logits, temp):
@@ -220,15 +222,16 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
             if confidence_eos_eot_inf:
                 logits_with_noise[:, :, 126081] = logits[:, :, 126348] = -torch.inf
             
-            if remasking == "margin":
+            if remasking == "Margin":
                 p = F.softmax(logits, dim=-1)
                 top_two = torch.topk(p, 2, dim=-1).values
                 # assign real confidence scores
                 x0_p = top_two[..., 0] - top_two[..., 1]
-            elif remasking == 'scheduler':
+            elif remasking == 'Scheduler' or remasking == "Autoregressive":
                 # assign random confidence scores
                 p = F.softmax(logits, dim=-1)
                 x0_p = p.max(dim=-1).values 
+                
             else:
                 raise NotImplementedError(remasking)
 
@@ -243,7 +246,7 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 
             transfer_index = torch.zeros_like(x0, dtype=torch.bool, device=x0.device)
 
-            position_temperature = scheduler.get_temperature(num_block * steps + i) if remasking == 'scheduler' else None
+            position_temperature = scheduler.get_temperature(num_block * steps + i) if remasking == 'Scheduler' else None
 
             for j in range(confidence.shape[0]):
                 k = num_transfer_tokens[j, i].item()
@@ -252,10 +255,10 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
           
                 valid_indexes = torch.isfinite(conf_j).nonzero().flatten()
                 k = min(k, valid_indexes.numel())
-                if remasking == "margin":
+                if remasking == "Margin":
                     _, s = torch.topk(conf_j[valid_indexes], k=k, largest=False)
                     selected_index = valid_indexes[s]
-                elif remasking == "scheduler":
+                elif remasking == "Scheduler":
                     if (position_temperature <= 1e-6):
                         _, selected_index = torch.topk(conf_j, k)
                     else:
@@ -267,6 +270,8 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
                             w = w / w.sum()
                             picked = torch.multinomial(w, k, replacement=False)
                             selected_index  = valid_indexes[picked]
+                elif remasking == "Autoregressive":
+                    selected_index = valid_indexes[:k]
                     
                 transfer_index[j, selected_index] = True
             x[transfer_index] = x0[transfer_index]
@@ -322,7 +327,7 @@ def main(seed, dataset_name, batch, batch_size):
     print(f"Starting experiments")
     for name, cls, args in methods:
         scheduler_obj = cls(args[0], args[1], total_steps) if cls else None
-        remasking = 'margin' if cls is None else 'scheduler'
+        remasking = name if name in ("Margin", "Autoregressive") else "Scheduler"
         samples = [[] for _ in range(N)]
         for start in range(0, len(dataset), BATCH):
             chunk = dataset.select(range(start, min(len(dataset), start + BATCH)))
@@ -344,8 +349,9 @@ def main(seed, dataset_name, batch, batch_size):
             input_ids = encoded_outputs['input_ids'].to(device)
             attention_mask = encoded_outputs['attention_mask'].to(device)
             for n in range(N):
-                scheduler_obj = remasking(1, 0, total_steps) if remasking is not None else None
-                out = generate(model, input_ids, scheduler_obj, attention_mask, steps=total_steps, gen_length=256, block_length=32, temperature=0.8, cfg_scale=0., remasking='margin' if method is None else "scheduler")
+                out = generate(model, input_ids, scheduler_obj, attention_mask,
+                   steps=total_steps, gen_length=256, block_length=32,
+                   temperature=0.8, cfg_scale=0., remasking=remasking)
                 output = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)
                 samples[n].extend(output)
             torch.cuda.empty_cache()
