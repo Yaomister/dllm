@@ -375,8 +375,8 @@ def main(seed, dataset_name, batch, batch_size):
             "c_counts": C,
         }
 
-    with open(f"results_{dataset_name}_{seed}_batch{batch}.json", 'w') as f:
-        json.dump(results, f, indent=2)
+        with open(f"results_{dataset_name}_{seed}_batch{batch}.json", 'w') as f:
+            json.dump(results, f, indent=2)
 
 
 
