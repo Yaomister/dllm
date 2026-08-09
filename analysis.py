@@ -4,6 +4,7 @@ import glob
 import json
 import pandas
 import numpy as np
+from itertools import cycle
 import matplotlib.pyplot as plt
 
 
@@ -42,11 +43,30 @@ def stitch_data():
 
 
 
-def graph_data(df):
-    for k in K:
-        fig, ax = plt.subplots()
-        ax.plot(np.arange(k), df[f'pass@{k}'])
-        fig.savefig()
+def graph_data(per_seed):
+    avg = per_seed.groupby(['dataset', 'method']).mean()
+    datasets = avg.index.get_level_values("dataset").unique()
+
+    fig, ax = plt.subplots(1, len(datasets), figsize=(7, 4), layout="constrained")
+    markers = cycle(["o", "s", "^", "D", "v", "P", "*"])
+    for i, dataset in enumerate(datasets):
+        for method in avg.loc[dataset].index:
+            y = [avg.loc[(dataset, method), f"pass@{k}"] for k in K]
+            ax[i].plot(K, y, marker=next(markers), label=method)
+        ax[i].set_xlabel("k")
+        ax[i].set_title(dataset)
+        ax[i].set_box_aspect(1)
+        ax[i].grid(True, alpha=0.3)
+        ax[i].set_axisbelow(True)
+
+    handles, labels = ax[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper left", bbox_to_anchor=(1.0, 0.95))
+
+    ax[0].set_ylabel("pass@k")
+    fig.tight_layout()
+    fig.savefig("pass_at_k.png", dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
     
 
 if __name__ == "__main__":
@@ -61,6 +81,6 @@ if __name__ == "__main__":
     summary = per_seed.groupby(["dataset", "method"]).agg(["mean", "std"])
     print(summary.round(3))
 
-    graph_data(df)
+    graph_data(per_seed)
 
 
