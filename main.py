@@ -11,9 +11,9 @@ from schedulers import CosScheduler, LinearScheduler, ConstantScheduler, Inverse
 
 
 methods = [
-    ("Greedy",    ConstantScheduler, (0.0, 0.0)),
-    ("ConstantHalf", ConstantScheduler, (0.5, 0.5)),
-    ("Constant",   ConstantScheduler, (1.0, 1.0)),
+    ("Low Confidence",    ConstantScheduler, (0.0, 0.0)),
+    ("TLC 0.5", ConstantScheduler, (0.5, 0.5)),
+    ("TLC 1",   ConstantScheduler, (1.0, 1.0)),
     ("Linear",        LinearScheduler,   (1.0, 0.0)),
     ("Cos",           CosScheduler,      (1.0, 0.0)),
     ("Inverse",       InverseScheduler,  (1.0, 0.0)),
@@ -321,7 +321,7 @@ def main(seed, dataset_name, batch, batch_size):
                 }
             }
 
-    N = 8
+    N = 16
     BATCH = 8    
 
     print(f"Starting experiments")
@@ -371,9 +371,11 @@ def main(seed, dataset_name, batch, batch_size):
             c = sum(inference_answer)
             C.append(c)
 
+        A = [[str(parse(samples[n][i])) for n in range(N)] for i in range(len(dataset))]
         results["method"][name] = {
             "problem_indices": problem_indices,
             "c_counts": C,
+            "answers": A,
         }
 
         with open(f"results_{dataset_name}_{seed}_batch{batch}.json", 'w') as f:

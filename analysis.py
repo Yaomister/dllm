@@ -6,10 +6,16 @@ import pandas
 import numpy as np
 from itertools import cycle
 import matplotlib.pyplot as plt
+from collections import Counter
 
 
-K = [1, 2, 4, 8]
-N = 8
+K = [1, 2, 4, 8, 16]
+N = 16
+
+def calculate_entropy(answers):
+    counts = np.array(list(Counter(answers).values), dtype = float)
+    p = counts / counts.sum()
+    return float(-(p * np.log(p)).sum())
 
 def calculate_pass_k(n, k, c):
     # n = how many samples you generate
@@ -48,16 +54,18 @@ def graph_data(per_seed):
     datasets = avg.index.get_level_values("dataset").unique()
 
     fig, ax = plt.subplots(1, len(datasets), figsize=(7, 4), layout="constrained")
-    markers = cycle(["o", "s", "^", "D", "v", "P", "*"])
+    shown_methods = ["Autoregressive", "Cos", "ConstantHalf", "Constant", "Greedy"]
     for i, dataset in enumerate(datasets):
+        markers = cycle(["o", "s", "^", "D", "v", "P", "*"])
         for method in avg.loc[dataset].index:
-            y = [avg.loc[(dataset, method), f"pass@{k}"] for k in K]
-            ax[i].plot(K, y, marker=next(markers), label=method)
-        ax[i].set_xlabel("k")
-        ax[i].set_title(dataset)
-        ax[i].set_box_aspect(1)
-        ax[i].grid(True, alpha=0.3)
-        ax[i].set_axisbelow(True)
+            if method in shown_methods:
+                y = [avg.loc[(dataset, method), f"pass@{k}"] for k in K]
+                ax[i].plot(K, y, marker=next(markers), label=method)
+            ax[i].set_xlabel("k")
+            ax[i].set_title(dataset)
+            ax[i].set_box_aspect(1)
+            ax[i].grid(True, alpha=0.3)
+            ax[i].set_axisbelow(True)
 
     handles, labels = ax[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper left", bbox_to_anchor=(1.0, 0.95))
