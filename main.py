@@ -16,8 +16,6 @@ methods = [
     ("TLC 1",   ConstantScheduler, (1.0, 1.0)),
     ("Linear",        LinearScheduler,   (1.0, 0.0)),
     ("Cos",           CosScheduler,      (1.0, 0.0)),
-    ("Inverse",       InverseScheduler,  (1.0, 0.0)),
-    ("Margin",        None,              None),
     ("Autoregressive",        None,              None),
     ("Random", ConstantScheduler, (1e6, 1e6)),
 ]
