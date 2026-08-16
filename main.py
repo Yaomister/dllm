@@ -3,11 +3,13 @@ import json
 import torch
 import argparse
 import numpy as np
+from typing import Union, List
 import torch.nn.functional as F
-from math_verify import parse, verify
 from datasets import load_dataset
+from math_verify import parse, verify
 from transformers import AutoModel, AutoTokenizer
-from schedulers import CosScheduler, LinearScheduler, ConstantScheduler, InverseScheduler, scheduler 
+from schedulers import CosScheduler, LinearScheduler, ConstantScheduler, InverseScheduler
+from calcualtions import calculate_pass_k
 
 
 methods = [
@@ -16,6 +18,7 @@ methods = [
     ("TLC 1",   ConstantScheduler, (1.0, 1.0)),
     ("Linear",        LinearScheduler,   (1.0, 0.0)),
     ("Cos",           CosScheduler,      (1.0, 0.0)),
+    ("Inverse",          InverseScheduler,      (1.0, 0.0)),
     ("Autoregressive",        None,              None),
 ]
 
@@ -37,7 +40,6 @@ def get_num_transfer_tokens(mask_index, steps):
     # count the number of mask tokens left
     mask_num = mask_index.sum(dim=1, keepdim = True)
 
-
     # the number of mask tokens to fill per step
     base = mask_num // steps
 
@@ -54,6 +56,14 @@ def get_num_transfer_tokens(mask_index, steps):
     return num_transfer_tokens
 
 
+# borrowed from OpenAI's HumanEval evaluations.py
+def estimate_pass_k(num_samples:  np.ndarray, num_correct: np.ndarray, k: int):
+    results = []
+    for n, c in zip(num_samples, num_correct):
+        results.append(calculate_pass_k(int(n), k, int(c)))
+    return np.array(results)
+
+    
 def contains_token_squence(tokens, sequence):
     # checks whether a shorter sequence of tokens exists in a longer sequence of tokens
     if sequence.numel() == 0 or tokens.numel() < sequence.numel():
@@ -307,7 +317,7 @@ def main(seed, dataset_name, batch, batch_size):
             "math": load_dataset("HuggingFaceH4/MATH-500", split="test"),
             "gsm8k": load_dataset("openai/gsm8k", "main", split="test"),
             "humaneval": load_dataset("openai/openai_humaneval", split='test'),
-            "mbpp":      load_dataset("google-research-datasets/mbpp", split="test"),  
+            "mbpp":      load_dataset("google-research-datasets/mbpp", "full", split="test"),  
 
     }
     if not dataset_name in datasets:
@@ -346,17 +356,17 @@ def main(seed, dataset_name, batch, batch_size):
 
             for row in chunk:
                 if dataset_name == "math":
-                    prompt_texts.append(row["question"])
+                    prompt_texts.append(row["problem"])
                 elif dataset_name == "gsm8k":
-                    prompt_texts.append(row['problem'])
+                    prompt_texts.append(row['question'])
                 elif dataset_name == "humaneval":
                     prompt_texts.append(f"Complete this function. Return the full function in a ```python block.\n\n```python\n{row['prompt']}```")
                 else:
                      prompt_texts.append("You are an expert Python programmer, and here is your task: " + row["text"] + "\nYour code should pass these tests:\n\n" + "\n".join(row["test_list"]))
           
-                prompts = [
-                    tokenizer.apply_chat_template([{"role": "user", "content": text}], add_generation_prompt=True, tokenize=False) for text in prompt_texts
-                ]
+            prompts = [
+                tokenizer.apply_chat_template([{"role": "user", "content": text}], add_generation_prompt=True, tokenize=False) for text in prompt_texts
+            ]
 
             assert tokenizer.pad_token_id != 126336
             encoded_outputs = tokenizer(
@@ -386,25 +396,30 @@ def main(seed, dataset_name, batch, batch_size):
             print('-' * 50)
 
 
-        C = []
-        for i in range(len(dataset)):
-            ground_truth_answer = dataset[i]['answer']
-            inference_answer = [grade(samples[n][i], ground_truth_answer, dataset_name=dataset_name) for n in range(N)]
-            c = sum(inference_answer)
-            C.append(c)
+        if dataset_name == "gsm8k" or dataset_name == "math":
+            C = []
 
-        A = [[str(parse(samples[n][i])) for n in range(N)] for i in range(len(dataset))]
-        results["method"][name] = {
-            "problem_indices": problem_indices,
-            "c_counts": C,
-            "answers": A,
-        }
+            for i in range(len(dataset)):
+                ground_truth_answer = dataset[i]['answer']
+                inference_answer = [grade(samples[n][i], ground_truth_answer, dataset_name=dataset_name) for n in range(N)]
+                c = sum(inference_answer)
+                C.append(c)
 
-        with open(f"results_{dataset_name}_{seed}_batch{batch}.json", 'w') as f:
-            json.dump(results, f, indent=2)
+            A = [[str(parse(samples[n][i])) for n in range(N)] for i in range(len(dataset))]
+ 
+            results["method"][name] = {
+                "problem_indices": problem_indices,
+                "c_counts": C,
+                "answers": A,
+            }
 
-
-
+            with open(f"results_{dataset_name}_{seed}_batch{batch}.json", 'w') as f:
+                json.dump(results, f, indent=2)
+        else:
+            with open(f"samples_{dataset_name}_{name.replace(' ', '_')}_{seed}_batch{batch}.jsonl") as f:
+                for i in range(len(dataset)):
+                    for n in range(N):
+                        f.write(json.dumps({"task_id": dataset[i]["task_id"], "completion": extract_code(samples[n][i]),}) + "\n")
 
 if __name__ == "__main__":
 

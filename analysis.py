@@ -6,27 +6,11 @@ import pandas
 import numpy as np
 from itertools import cycle
 import matplotlib.pyplot as plt
-from collections import Counter
+from calcualtions import calculate_entropy, calculate_pass_k
 
 
 K = [1, 2, 4, 8, 16]
 N = 16
-
-def calculate_entropy(answers):
-    counts = np.array(list(Counter(answers).values), dtype = float)
-    p = counts / counts.sum()
-    return float(-(p * np.log(p)).sum())
-
-def calculate_pass_k(n, k, c):
-    # n = how many samples you generate
-    # c = how many of the samples came out correct
-    # k = how many attemps we're asking about
-
-    # not enough failues to fill a subset, so guarenteed hit
-    if n - c < k:
-        return 1
-
-    return 1 - np.prod(1 - k / np.arange(n - c + 1, n + 1))
 
 def stitch_data():
     records = []
