@@ -17,7 +17,6 @@ methods = [
     ("Linear",        LinearScheduler,   (1.0, 0.0)),
     ("Cos",           CosScheduler,      (1.0, 0.0)),
     ("Autoregressive",        None,              None),
-    ("Random", ConstantScheduler, (1e6, 1e6)),
 ]
 
 def add_gumbel_noise(logits, temp):
@@ -276,7 +275,10 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 
     return x
 
-        
+
+def extract_code(text):
+    blocks = re.findall(r"```(?:python)?\n(.*?)```", text, re.DOTALL)
+    return max(blocks, key=len) if blocks else text
 
 
 def grade(prediction, answer, dataset_name):
@@ -305,6 +307,7 @@ def main(seed, dataset_name, batch, batch_size):
             "math": load_dataset("HuggingFaceH4/MATH-500", split="test"),
             "gsm8k": load_dataset("openai/gsm8k", "main", split="test"),
             "humaneval": load_dataset("openai/openai_humaneval", split='test'),
+            "mbpp":      load_dataset("google-research-datasets/mbpp", split="test"),  
 
     }
     if not dataset_name in datasets:
@@ -321,7 +324,7 @@ def main(seed, dataset_name, batch, batch_size):
     total_steps = 256
 
     results = {
-                "config": {"model": "LLaDA-8B-Instruct", "N": 8,
+                "config": {"model": "LLaDA-8B-Instruct", "N": 16,
                    "T_token": 0.8, "block_length": 32, "steps": 256},
                 "method": {
     
@@ -338,11 +341,23 @@ def main(seed, dataset_name, batch, batch_size):
         samples = [[] for _ in range(N)]
         for start in range(0, len(dataset), BATCH):
             chunk = dataset.select(range(start, min(len(dataset), start + BATCH)))
-            field = "problem" if dataset_name == "math" else "question"
-            messages = [{"role": "user", "content": row[field]} for row in chunk]            
-            prompts = [
-                tokenizer.apply_chat_template([m], add_generation_prompt=True, tokenize=False) for m in messages
-            ]
+
+            prompt_texts = []
+
+            for row in chunk:
+                if dataset_name == "math":
+                    prompt_texts.append(row["question"])
+                elif dataset_name == "gsm8k":
+                    prompt_texts.append(row['problem'])
+                elif dataset_name == "humaneval":
+                    prompt_texts.append(f"Complete this function. Return the full function in a ```python block.\n\n```python\n{row['prompt']}```")
+                else:
+                     prompt_texts.append("You are an expert Python programmer, and here is your task: " + row["text"] + "\nYour code should pass these tests:\n\n" + "\n".join(row["test_list"]))
+          
+                prompts = [
+                    tokenizer.apply_chat_template([{"role": "user", "content": text}], add_generation_prompt=True, tokenize=False) for text in prompt_texts
+                ]
+
             assert tokenizer.pad_token_id != 126336
             encoded_outputs = tokenizer(
                 prompts,
