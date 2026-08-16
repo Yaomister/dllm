@@ -301,7 +301,16 @@ def main(seed, dataset_name, batch, batch_size):
     model = AutoModel.from_pretrained(pretrained_model_name_or_path="GSAI-ML/LLaDA-8B-Instruct", trust_remote_code=True, torch_dtype=torch.bfloat16).to(device).eval()
 
     tokenizer = AutoTokenizer.from_pretrained('GSAI-ML/LLaDA-8B-Instruct', trust_remote_code=True)
-    dataset = load_dataset("HuggingFaceH4/MATH-500", split="test") if dataset_name == "math" else load_dataset("openai/gsm8k", "main", split="test")
+    datasets = {
+            "math": load_dataset("HuggingFaceH4/MATH-500", split="test"),
+            "gsm8k": load_dataset("openai/gsm8k", "main", split="test"),
+            "humaneval": load_dataset("openai/openai_humaneval", split='test'),
+
+    }
+    if not dataset_name in datasets:
+        raise ValueError("invalid dataset name.")
+
+    dataset = datasets[dataset_name]
     dataset = dataset.select(range(100))
     problem_indices = list(range(len(dataset)))[batch::batch_size]
     dataset = dataset.select(problem_indices)

@@ -54,7 +54,7 @@ def graph_data(per_seed):
     datasets = avg.index.get_level_values("dataset").unique()
 
     fig, ax = plt.subplots(1, len(datasets), figsize=(7, 4), layout="constrained")
-    shown_methods = ["TLC 0.5", "Cos", "TLC 1", "Linear", "Low Confidence"]
+    shown_methods = ["Cos", "TLC 1", "Linear", "Low Confidence"]
     for i, dataset in enumerate(datasets):
         markers = cycle(["o", "s", "^", "D", "v", "P", "*"])
         for method in avg.loc[dataset].index:
