@@ -29,6 +29,6 @@ export HF_HOME=/scratch/yao.eric/hf_cache/huggingface
 
 python -u main.py \
   --seed ${SEEDS[$s]} \
-  --dataset ${DATASETS[$d]} \
+  --dataset $DATASET \
   --batch $batch \
   --batch-size $NUM_BATCHES
