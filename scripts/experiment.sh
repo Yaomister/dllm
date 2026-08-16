@@ -6,7 +6,7 @@
 #SBATCH --mem=48G
 #SBATCH --time=08:00:00
 #SBATCH --output=logs/train_%A_%a.out
-#SBATCH --array=0-23%4
+#SBATCH --array=0-11%4
 
 cd $SLURM_SUBMIT_DIR
 
