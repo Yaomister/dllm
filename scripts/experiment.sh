@@ -12,7 +12,7 @@ cd $SLURM_SUBMIT_DIR
 
 NUM_BATCHES=4
 SEEDS=(0 1 2)
-DATASET=${DATASET:?set DATASET=humaneval or mbpp}
+DATASET=$1
 
 idx=$SLURM_ARRAY_TASK_ID
 batch=$(( idx % NUM_BATCHES ))
