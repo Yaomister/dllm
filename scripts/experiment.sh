@@ -12,7 +12,7 @@ cd $SLURM_SUBMIT_DIR
 
 NUM_BATCHES=4
 SEEDS=(0 1 2)
-DATASETS=(math gsm8k)
+DATASET=${DATASET:?set DATASET=humaneval or mbpp}
 
 idx=$SLURM_ARRAY_TASK_ID
 batch=$(( idx % NUM_BATCHES ))
@@ -25,6 +25,7 @@ mkdir -p logs
 source /home/yao.eric/dllm-tpos-schedules/.venv/bin/activate
 
 export HF_HOME=/scratch/yao.eric/hf_cache/huggingface
+
 
 python -u main.py \
   --seed ${SEEDS[$s]} \
