@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 from calcualtions import calculate_entropy, calculate_pass_k
 
 
-K = [1, 2, 4, 8, 16]
-N = 16
+K = [1, 2, 4, 8, 16, 32]
+N = 32
 
 def stitch_data():
     records = []
