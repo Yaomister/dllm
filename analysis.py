@@ -34,7 +34,7 @@ def stitch_data():
 
 
 markers_ = ["o", "s", "^", "D", "v", "P", "*"]
-shown_methods = ["Cos", "TLC 1", "Linear", "Low Confidence"]
+shown_methods = ["Cos", "TLC 1", "Linear", "Low Confidence", "Inverse"]
 
 def graph_entropy_k_data(per_seed):
     avg = per_seed.groupby(['dataset', 'method']).mean()

@@ -341,7 +341,7 @@ def main(seed, dataset_name, batch, batch_size):
                 }
             }
 
-    N = 32
+    N = 16
     BATCH = 8    
 
     print(f"Starting experiments")
