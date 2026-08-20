@@ -9,7 +9,7 @@ from datasets import load_dataset
 from math_verify import parse, verify
 from transformers import AutoModel, AutoTokenizer
 from schedulers import CosScheduler, LinearScheduler, ConstantScheduler, InverseScheduler
-from calcualtions import calculate_pass_k
+from calculations import calculate_pass_k
 
 
 methods = [
@@ -416,7 +416,7 @@ def main(seed, dataset_name, batch, batch_size):
             with open(f"results_{dataset_name}_{seed}_batch{batch}.json", 'w') as f:
                 json.dump(results, f, indent=2)
         else:
-            with open(f"samples_{dataset_name}_{name.replace(' ', '_')}_{seed}_batch{batch}.jsonl") as f:
+            with open(f"samples_{dataset_name}_{name.replace(' ', '_')}_{seed}_batch{batch}.jsonl", "w") as f:
                 for i in range(len(dataset)):
                     for n in range(N):
                         f.write(json.dumps({"task_id": dataset[i]["task_id"], "completion": extract_code(samples[n][i]),}) + "\n")
