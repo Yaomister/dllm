@@ -6,7 +6,7 @@ import pandas
 import numpy as np
 from itertools import cycle
 import matplotlib.pyplot as plt
-from calcualtions import  calculate_pass_k, calculate_entropy_k
+from calculations import  calculate_pass_k, calculate_entropy_k
 
 
 K = [1, 2, 4, 8, 16, 32]
@@ -34,7 +34,7 @@ def stitch_data():
 
 
 markers_ = ["o", "s", "^", "D", "v", "P", "*"]
-shown_methods = ["Cos", "TLC 1", "Linear", "Low Confidence", "Inverse"]
+shown_methods = ["Cos", "TLC 1", "TLC 0.5",  "Linear", "Low Confidence"]
 
 def graph_entropy_k_data(per_seed):
     avg = per_seed.groupby(['dataset', 'method']).mean()
@@ -48,6 +48,8 @@ def graph_entropy_k_data(per_seed):
                 y = [avg.loc[(dataset, method), f"entropy@{k}"] for k in K]
                 ax[i].plot(K, y, marker=next(markers), label=method)
             ax[i].set_xlabel("k")
+            ax[i].set_xticks(K)
+            ax[i].set_xscale("log", base=2)
             ax[i].set_title(dataset)
             ax[i].set_box_aspect(1)
             ax[i].grid(True, alpha=0.3)
@@ -73,6 +75,8 @@ def graph_pass_k_data(per_seed):
                 y = [avg.loc[(dataset, method), f"pass@{k}"] for k in K]
                 ax[i].plot(K, y, marker=next(markers), label=method)
             ax[i].set_xlabel("k")
+            ax[i].set_xticks(K)
+            ax[i].set_xscale("log", base=2)
             ax[i].set_title(dataset)
             ax[i].set_box_aspect(1)
             ax[i].grid(True, alpha=0.3)
