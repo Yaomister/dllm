@@ -4,6 +4,7 @@ import glob
 import json
 import tempfile
 import contextlib
+import numpy as np
 import defaultdict
 import multiprocessing
 from datasets import load_dataset
@@ -74,6 +75,19 @@ def execute(program, task_id, timeout):
 
 def calculate(results):
     K = [1, 2, 4, 8, 16, 32]
+    by_task = defaultdict(list)
+
+    for r in results:
+        by_task[r[task_id]].append(r['passed'])
+
+    out = {}
+
+    for k in K:
+        scores = [calculate_pass_k(len(v), sum(v), k) for v in by_task.values() if len(v) >= k]
+        if scores:
+            out[f'pass@{k}'] = float(np.mean(scores))
+
+    return res
 
 
 if __name__ == "__main__":
