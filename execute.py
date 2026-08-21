@@ -5,9 +5,9 @@ import json
 import tempfile
 import contextlib
 import numpy as np
-import defaultdict
 import multiprocessing
 from datasets import load_dataset
+from collections import defaultdict
 from calculations import calculate_pass_k
 from argparse import ArgumentParser
 
@@ -48,29 +48,30 @@ def check_correctness(program, results):
         try:
             exec_globals = {}
             exec(program, exec_globals)
+            results.put('passed')
         except TimeoutError:
-            results.append("timed out")
+            results.put("timed out")
+        except BaseException as e:
+            results.put(f"failed: {type(e).__name__}: {e}")
         
 
 def execute(program, task_id, timeout):
 
     manager = multiprocessing.Manager()
-    results = manager.list()
+    q = manager.Queue()
 
-    p = multiprocessing.Process(target=check_correctness, args=(program, timeout, results))
+    p = multiprocessing.Process(target=check_correctness, args=(program, q))
     p.start()
     p.join(timeout= timeout + 1)
 
     if p.is_alive():
         p.kill()
 
-    if not results:
-        results.append("timed out")
-
+    result = q.get() if not q.empty() else "timed out"
     return dict(
         task_id = task_id,
-        passed = results[0] == 'passed',
-        results = results[0]
+        passed = result == 'passed',
+        result = result
     )
 
 def calculate(results):
@@ -91,6 +92,7 @@ def calculate(results):
 
 
 if __name__ == "__main__":
+    multiprocessing.set_start_method("fork")
 
     parser = ArgumentParser()
     parser.add_argument("--dataset", required=True)
@@ -100,7 +102,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.dataset == "humaneval":
-        dataset = load_dataset("openai/openai_humaneval", split='test'),
+        dataset = load_dataset("openai/openai_humaneval", split='test')
         build = build_humaneval
     elif args.dataset == "mbpp":
         dataset = load_dataset("google-research-datasets/mbpp", "full", split="test")
@@ -128,12 +130,14 @@ if __name__ == "__main__":
                 rec = json.loads(line)
                 by_method[method][rec['task_id']].append(rec["completion"])
 
-    res = {}
+    res = defaultdict(list)
     for method in by_method.keys():
         method_dict = by_method[method]
         for task_id in method_dict:
-            snippits = []
             for completion in method_dict[task_id]:
-                code = build(problems[task_id], completion)
-                snippits.append(code)
-            res[method] = execute(snippits)
+                program = build(problems[task_id], completion)
+                res[method].append(execute(program, task_id, args.timeout))
+            
+
+    with open(f'execution_results_{dataset}.json', "w") as f:
+        f.write(json.dumps(res))
