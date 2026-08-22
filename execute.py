@@ -12,7 +12,6 @@ from calculations import calculate_pass_k
 from argparse import ArgumentParser
 
 
-
 def build_humaneval(problem, code):
      return problem["prompt"] + code + "\n" + problem["test"] + "\n" + f"check({problem['entry_point']})"
         
@@ -49,9 +48,12 @@ def check_correctness(program, results):
             exec_globals = {}
             exec(program, exec_globals)
             results.put('passed')
+            print("passed")
         except TimeoutError:
+            print("timed out")
             results.put("timed out")
         except BaseException as e:
+            print('failed')
             results.put(f"failed: {type(e).__name__}: {e}")
         
 
@@ -97,7 +99,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--glob", required=True)
-    parser.add_argument("--timeout", type=float, default=10.0) 
+    parser.add_argument("--timeout", required=False, type=float, default=10.0) 
 
     args = parser.parse_args()
 
