@@ -142,5 +142,5 @@ if __name__ == "__main__":
                 res[method].append(execute(program, task_id, args.timeout))
             
 
-    with open(f'execution_results_{dataset}.json', "w") as f:
+    with open(f'execution_results_{args.dataset}.json', "w") as f:
         f.write(json.dumps(res))

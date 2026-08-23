@@ -23,10 +23,9 @@ methods = [
 ]
 
 def add_gumbel_noise(logits, temp):
-
     # use gumbel's maximum instead of sampling from a probability distribution
 
-    # the idead is we add a random amount of noise (kick) to each value and take the argmax, the maxium value after the noise is equivallent to drawing from a softmax distribution.
+    # the idea is we add a random amount of noise (kick) to each value and take the argmax, the maxium value after the noise is equivallent to drawing from a softmax distribution.
     if temp == 0:
         return logits
     logits = logits.to(torch.float32)
@@ -47,6 +46,7 @@ def get_num_transfer_tokens(mask_index, steps):
     remainder = mask_num % steps
 
     # a tensor where the value at each position represents the number of tokens you need to fill at each step
+    # batch_size, steps
     num_transfer_tokens = torch.zeros(mask_num.size(0), steps, device=mask_index.device, dtype=torch.int64) + base
 
     # fill the remainders
@@ -54,14 +54,6 @@ def get_num_transfer_tokens(mask_index, steps):
         num_transfer_tokens[i, : remainder[i]] += 1
 
     return num_transfer_tokens
-
-
-# borrowed from OpenAI's HumanEval evaluations.py
-def estimate_pass_k(num_samples:  np.ndarray, num_correct: np.ndarray, k: int):
-    results = []
-    for n, c in zip(num_samples, num_correct):
-        results.append(calculate_pass_k(int(n), k, int(c)))
-    return np.array(results)
 
     
 def contains_token_squence(tokens, sequence):
@@ -75,7 +67,7 @@ def contains_token_squence(tokens, sequence):
 
 
 def get_next_sequence_token_id(tokens, position, sequence, context_start):
-    # when we're halkway through writing a target phrase, this gets the next token in it
+    # when we're half way through writing a target phrase, this gets the next token in it
     max_prefix_length = min(sequence.numel() - 1, position - context_start)
     for prefix_length in range(max_prefix_length, 0, -1):
         if torch.equal(tokens[position - prefix_length:position], sequence[:prefix_length]):
@@ -229,16 +221,10 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
             if confidence_eos_eot_inf:
                 logits_with_noise[:, :, 126081] = logits[:, :, 126348] = -torch.inf
             
-            if remasking == "Margin":
+            if remasking == 'Scheduler' or remasking == "Autoregressive":
+                # grab the position with the highest confidence
                 p = F.softmax(logits, dim=-1)
-                top_two = torch.topk(p, 2, dim=-1).values
-                # assign real confidence scores
-                x0_p = top_two[..., 0] - top_two[..., 1]
-            elif remasking == 'Scheduler' or remasking == "Autoregressive":
-                # assign random confidence scores
-                p = F.softmax(logits, dim=-1)
-                x0_p = p.max(dim=-1).values 
-                
+                x0_p = p.max(dim=-1).values       
             else:
                 raise NotImplementedError(remasking)
 
@@ -262,10 +248,7 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
           
                 valid_indexes = torch.isfinite(conf_j).nonzero().flatten()
                 k = min(k, valid_indexes.numel())
-                if remasking == "Margin":
-                    _, s = torch.topk(conf_j[valid_indexes], k=k, largest=False)
-                    selected_index = valid_indexes[s]
-                elif remasking == "Scheduler":
+                if remasking == "Scheduler":
                     if (position_temperature <= 1e-6):
                         _, selected_index = torch.topk(conf_j, k)
                     else:
@@ -369,6 +352,7 @@ def main(seed, dataset_name, batch, batch_size):
             ]
 
             assert tokenizer.pad_token_id != 126336
+            
             encoded_outputs = tokenizer(
                 prompts,
                 add_special_tokens=False,
