@@ -6,6 +6,7 @@ import pandas
 import numpy as np
 from itertools import cycle
 import matplotlib.pyplot as plt
+from collections import defaultdict
 from calculations import  calculate_pass_k, calculate_entropy_k
 
 
@@ -13,15 +14,33 @@ K = [1, 2, 4, 8, 16, 32]
 N = 32
 
 def stitch_executed_results():
-    records = []
-
+    records = {}
     for path in glob.glob("results/execution_results_*.json"):
-        name = os.path.basename(path)
-        dataset = re.match(r"execution_results_(\w+).json", name).groups()
-        print(dataset)
-        data = json.load(open(path))
+        m = re.match(r"execution_results_(\w+)\.json$", os.path.basename(path))
+        if not m:
+            continue
+        with open(path) as f:
+            data = json.load(f)
 
-        print(data.keys())
+        per_dataset = {}
+        for method, runs in data.items():
+            # runs, passes
+            per_method = {}
+            counts = defaultdict(lambda: [0, 0])
+            for run in runs:
+                counts[run['task_id']][0] += 1
+                counts[run["task_id"]][1] += run["passed"]
+
+            for k in K:
+                per_method[f"pass@{k}"] = np.mean([calculate_pass_k(n, k, c) for n, c in counts.values()]).item()
+            per_dataset[method.replace("_", " ")] = per_method
+        records[m.group(1)] = per_dataset
+
+    return pandas.DataFrame.from_dict(
+        {(d, m): scores for d, methods in records.items() for m, scores in methods.items()},
+        orient="index",
+    ).rename_axis(["dataset", "method"])
+        
 
 def stitch_results():
     records = []
@@ -46,7 +65,7 @@ def stitch_results():
 markers_ = ["o", "s", "^", "D", "v", "P", "*"]
 shown_methods = ["Cos", "TLC 1", "TLC 0.5",  "Linear", "Low Confidence"]
 
-def graph_entropy_k_data(per_seed):
+def graph_entropy_k_data(per_seed, ):
     avg = per_seed.groupby(['dataset', 'method']).mean()
     datasets = avg.index.get_level_values("dataset").unique()
 
@@ -64,7 +83,7 @@ def graph_entropy_k_data(per_seed):
             ax[i].set_box_aspect(1)
             ax[i].grid(True, alpha=0.3)
             ax[i].set_axisbelow(True)
-        
+
     handles, labels = ax[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper left", bbox_to_anchor=(1.0, 0.95))
 
@@ -73,16 +92,20 @@ def graph_entropy_k_data(per_seed):
     fig.savefig("entropy_at_k.png", dpi=200, bbox_inches="tight")
     plt.close(fig)
 
-def graph_pass_k_data(per_seed):
+def graph_pass_k_data(per_seed, per_execution):
     avg = per_seed.groupby(['dataset', 'method']).mean()
-    datasets = avg.index.get_level_values("dataset").unique()
+    datasets = list(avg.index.get_level_values("dataset").unique()) + list(per_execution.index.get_level_values("dataset").unique())
 
-    fig, ax = plt.subplots(1, len(datasets), figsize=(7, 4), layout="constrained")
+    fig, ax = plt.subplots(1, len(datasets), figsize=(4 * len(datasets), 4.5), layout="constrained")
     for i, dataset in enumerate(datasets):
         markers = cycle(markers_)
-        for method in avg.loc[dataset].index:
+        src = avg if dataset in avg.index.get_level_values("dataset") else per_execution
+        for method in src.loc[dataset].index:
             if method in shown_methods:
-                y = [avg.loc[(dataset, method), f"pass@{k}"] for k in K]
+                if (dataset, method) in avg.index:
+                    y = [avg.loc[(dataset, method), f"pass@{k}"] for k in K]
+                else: 
+                    y = [per_execution.loc[(dataset, method), f"pass@{k}"] for k in K]
                 ax[i].plot(K, y, marker=next(markers), label=method)
             ax[i].set_xlabel("k")
             ax[i].set_xticks(K)
@@ -107,24 +130,18 @@ def graph_pass_k_data(per_seed):
 if __name__ == "__main__":
     stitch_executed_results()
 
-    # df = stitch_results()
+    df = stitch_results()
 
-    # for k in K:
-    #     df[f"pass@{k}"] = df['c'].apply(lambda c : calculate_pass_k(N, k, c))
-    #     df[f"entropy@{k}"] = df['answers'].apply(lambda a : calculate_entropy_k(a, k))
+    for k in K:
+        df[f"pass@{k}"] = df['c'].apply(lambda c : calculate_pass_k(N, k, c))
+        df[f"entropy@{k}"] = df['answers'].apply(lambda a : calculate_entropy_k(a, k))
 
-    # cols = [f'pass@{k}' for k in K] + [f'entropy@{k}' for k in K]
-    # per_seed = df.groupby(["dataset", "seed", "method"])[cols].mean()   
-    
-    # summary = per_seed.groupby(["dataset", "method"]).agg(["mean", "std"])
-    # print(summary.round(3))
+    cols = [f'pass@{k}' for k in K] + [f'entropy@{k}' for k in K]
+    per_seed = df.groupby(["dataset", "seed", "method"])[cols].mean()   
 
-    # # load in humaneval and mbpp
+    per_execution = stitch_executed_results()
 
-
-
-
-    # graph_pass_k_data(per_seed)
-    # graph_entropy_k_data(per_seed)
+    graph_pass_k_data(per_seed, per_execution)
+    graph_entropy_k_data(per_seed)
 
 
