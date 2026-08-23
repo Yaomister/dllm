@@ -8,6 +8,7 @@ from itertools import cycle
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from calculations import  calculate_pass_k, calculate_entropy_k
+from matplotlib.ticker import ScalarFormatter, NullFormatter
 
 
 K = [1, 2, 4, 8, 16, 32]
@@ -63,7 +64,9 @@ def stitch_results():
 
 
 markers_ = ["o", "s", "^", "D", "v", "P", "*"]
-shown_methods = ["Cos", "TLC 1", "TLC 0.5",  "Linear", "Low Confidence"]
+shown_methods = ["Cos", "TLC 1", "TLC 0.5",  "Linear", "Low Confidence", "Inverse"]
+
+label_map = {"TLC 0.5": "TLC 0.1"}
 
 def graph_entropy_k_data(per_seed, ):
     avg = per_seed.groupby(['dataset', 'method']).mean()
@@ -75,11 +78,13 @@ def graph_entropy_k_data(per_seed, ):
         for method in avg.loc[dataset].index:
             if method in shown_methods:
                 y = [avg.loc[(dataset, method), f"entropy@{k}"] for k in K]
-                ax[i].plot(K, y, marker=next(markers), label=method)
+                ax[i].plot(K, y, marker=next(markers), label=label_map.get(method, method))
             ax[i].set_xlabel("k")
-            ax[i].set_xticks(K)
             ax[i].set_xscale("log", base=2)
-            ax[i].set_title(dataset)
+            ax[i].set_xticks(K)
+            ax[i].xaxis.set_major_formatter(ScalarFormatter())
+            ax[i].xaxis.set_minor_formatter(NullFormatter())    
+            ax[i].set_title(dataset.upper())
             ax[i].set_box_aspect(1)
             ax[i].grid(True, alpha=0.3)
             ax[i].set_axisbelow(True)
@@ -106,11 +111,13 @@ def graph_pass_k_data(per_seed, per_execution):
                     y = [avg.loc[(dataset, method), f"pass@{k}"] for k in K]
                 else: 
                     y = [per_execution.loc[(dataset, method), f"pass@{k}"] for k in K]
-                ax[i].plot(K, y, marker=next(markers), label=method)
+                ax[i].plot(K, y, marker=next(markers), label=label_map.get(method, method))
             ax[i].set_xlabel("k")
-            ax[i].set_xticks(K)
             ax[i].set_xscale("log", base=2)
-            ax[i].set_title(dataset)
+            ax[i].set_xticks(K)
+            ax[i].xaxis.set_major_formatter(ScalarFormatter())
+            ax[i].xaxis.set_minor_formatter(NullFormatter())
+            ax[i].set_title(dataset.upper())
             ax[i].set_box_aspect(1)
             ax[i].grid(True, alpha=0.3)
             ax[i].set_axisbelow(True)

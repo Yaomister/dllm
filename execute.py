@@ -76,23 +76,6 @@ def execute(program, task_id, timeout):
         result = result
     )
 
-def calculate(results):
-    K = [1, 2, 4, 8, 16, 32]
-    by_task = defaultdict(list)
-
-    for r in results:
-        by_task[r[task_id]].append(r['passed'])
-
-    out = {}
-
-    for k in K:
-        scores = [calculate_pass_k(len(v), sum(v), k) for v in by_task.values() if len(v) >= k]
-        if scores:
-            out[f'pass@{k}'] = float(np.mean(scores))
-
-    return res
-
-
 if __name__ == "__main__":
     multiprocessing.set_start_method("fork")
 
@@ -124,7 +107,7 @@ if __name__ == "__main__":
     by_method = defaultdict(lambda: defaultdict(list))
 
     for path in files:
-        m = re.match(r"samples_[^_]+_(.+?)_\d+_batch\d+\.jsonl$", os.path.basename(path))
+        m = re.match(r"samples_\w+?_(.+)_(\d+)_batch(\d+)\.jsonl$", os.path.basename(path))
         method = m.group(1) if m else os.path.basename(path)
 
         with open(path, "r") as file:
