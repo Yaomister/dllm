@@ -89,8 +89,7 @@ def graph_entropy_k_data(per_seed, ):
             ax[i].grid(True, alpha=0.3)
             ax[i].set_axisbelow(True)
 
-    handles, labels = ax[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper left", bbox_to_anchor=(1.0, 0.95))
+    ax[0].legend(loc="best", fontsize=8, framealpha=0.85, ncol=2)
 
     ax[0].set_ylabel("entropy@k")
     fig.tight_layout()
@@ -122,9 +121,7 @@ def graph_pass_k_data(per_seed, per_execution):
             ax[i].grid(True, alpha=0.3)
             ax[i].set_axisbelow(True)
 
-    handles, labels = ax[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper left", bbox_to_anchor=(1.0, 0.95))
-
+    ax[0].legend(loc="best", fontsize=8, framealpha=0.85, ncol=2)
     ax[0].set_ylabel("pass@k")
     fig.tight_layout()
     fig.savefig("pass_at_k.png", dpi=200, bbox_inches="tight")
