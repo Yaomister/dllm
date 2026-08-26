@@ -11,8 +11,8 @@ from calculations import  calculate_pass_k, calculate_entropy_k
 from matplotlib.ticker import ScalarFormatter, NullFormatter
 
 
-K = [1, 2, 4, 8, 16, 32]
-N = 32
+K = [1, 2, 4, 8, 16]
+N = 16
 
 
 def stitch_executed_results():
@@ -65,7 +65,7 @@ def stitch_results():
 
 
 markers_ = ["o", "s", "^", "D", "v", "P", "*"]
-shown_methods = ["Cos", "TLC 1", "TLC 0.5",  "Linear", "Low Confidence", "Inverse"]
+shown_methods = ["Cos", "TLC 1",  "Linear", "Low Confidence", "Inverse"]
 
 label_map = {"TLC 0.5": "TLC 0.1"}
 
@@ -145,6 +145,9 @@ if __name__ == "__main__":
     per_seed = df.groupby(["dataset", "seed", "method"])[cols].mean()   
 
     per_execution = stitch_executed_results()
+
+    print(per_execution)
+    print(per_seed.groupby(['dataset', 'method']).mean())
 
     graph_pass_k_data(per_seed, per_execution)
     graph_entropy_k_data(per_seed)
