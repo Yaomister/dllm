@@ -92,7 +92,6 @@ def graph_entropy_k_data(per_seed, ):
     h, l = ax[0].get_legend_handles_labels()
     fig.legend(h, l, loc="outside lower center", ncol=6, frameon=False)
     ax[0].set_ylabel("entropy@k")
-    fig.tight_layout()
     fig.savefig("entropy_at_k.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
@@ -123,7 +122,6 @@ def graph_pass_k_data(per_seed, per_execution):
     h, l = ax[0].get_legend_handles_labels()
     fig.legend(h, l, loc="outside lower center", ncol=6, frameon=False)
     ax[0].set_ylabel("pass@k")
-    fig.tight_layout()
     fig.savefig("pass_at_k.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
