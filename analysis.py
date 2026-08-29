@@ -72,7 +72,7 @@ def graph_entropy_k_data(per_seed, ):
     avg = per_seed.groupby(['dataset', 'method']).mean()
     datasets = avg.index.get_level_values("dataset").unique()
 
-    fig, ax = plt.subplots(1, 2, figsize=(6.5, 3.2), layout="constrained")
+    fig, ax = plt.subplots(1, 2, figsize=(6.5, 3.6), layout="constrained")
     for i, dataset in enumerate(datasets):
         markers = cycle(markers_)
         for method in avg.loc[dataset].index:
@@ -90,7 +90,7 @@ def graph_entropy_k_data(per_seed, ):
             ax[i].set_axisbelow(True)
 
     h, l = ax[0].get_legend_handles_labels()
-    fig.legend(h, l, loc="outside lower center", ncol=6, frameon=False)
+    fig.legend(h, l, loc="outside lower center", ncol=6, frameon=False, fontsize=12)
     ax[0].set_ylabel("entropy@k")
     fig.savefig("entropy_at_k.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
@@ -99,7 +99,7 @@ def graph_pass_k_data(per_seed, per_execution):
     avg = per_seed.groupby(['dataset', 'method']).mean()
     datasets = list(avg.index.get_level_values("dataset").unique()) + list(per_execution.index.get_level_values("dataset").unique())
 
-    fig, ax = plt.subplots(1, 4, figsize=(14, 3.6), layout="constrained")
+    fig, ax = plt.subplots(1, 4, figsize=(14, 4.0), layout="constrained")
     for i, dataset in enumerate(datasets):
         markers = cycle(markers_)
         src = avg if dataset in avg.index.get_level_values("dataset") else per_execution
@@ -120,7 +120,7 @@ def graph_pass_k_data(per_seed, per_execution):
             ax[i].set_axisbelow(True)
 
     h, l = ax[0].get_legend_handles_labels()
-    fig.legend(h, l, loc="outside lower center", ncol=6, frameon=False)
+    fig.legend(h, l, loc="outside lower center", ncol=6, frameon=False, fontsize=14)
     ax[0].set_ylabel("pass@k")
     fig.savefig("pass_at_k.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
