@@ -125,14 +125,13 @@ def graph_pass_k_data(per_seed, per_execution):
     fig.savefig("pass_at_k.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-
-
     
 
 if __name__ == "__main__":
     stitch_executed_results()
 
     df = stitch_results()
+    print(df.groupby(["dataset", "method", "problem"]).size().value_counts()) 
 
     for k in K:
         df[f"pass@{k}"] = df['c'].apply(lambda c : calculate_pass_k(N, k, c))
