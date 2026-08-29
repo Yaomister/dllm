@@ -65,9 +65,8 @@ def stitch_results():
 
 
 markers_ = ["o", "s", "^", "D", "v", "P", "*"]
-shown_methods = ["Cos", "TLC 1",  "Linear", "Low Confidence", "Inverse"]
+shown_methods = ["Cos", "TLC 1",  "TLC 0.55", "Linear",  "Inverse"]
 
-label_map = {"TLC 0.5": "TLC 0.1"}
 
 def graph_entropy_k_data(per_seed, ):
     avg = per_seed.groupby(['dataset', 'method']).mean()
@@ -79,7 +78,7 @@ def graph_entropy_k_data(per_seed, ):
         for method in avg.loc[dataset].index:
             if method in shown_methods:
                 y = [avg.loc[(dataset, method), f"entropy@{k}"] for k in K]
-                ax[i].plot(K, y, marker=next(markers), label=label_map.get(method, method))
+                ax[i].plot(K, y, marker=next(markers), label=method)
             ax[i].set_xlabel("k")
             ax[i].set_xscale("log", base=2)
             ax[i].set_xticks(K)
@@ -111,7 +110,7 @@ def graph_pass_k_data(per_seed, per_execution):
                     y = [avg.loc[(dataset, method), f"pass@{k}"] for k in K]
                 else: 
                     y = [per_execution.loc[(dataset, method), f"pass@{k}"] for k in K]
-                ax[i].plot(K, y, marker=next(markers), label=label_map.get(method, method))
+                ax[i].plot(K, y, marker=next(markers), label=method)
             ax[i].set_xlabel("k")
             ax[i].set_xscale("log", base=2)
             ax[i].set_xticks(K)
@@ -143,11 +142,13 @@ if __name__ == "__main__":
 
     cols = [f'pass@{k}' for k in K] + [f'entropy@{k}' for k in K]
     per_seed = df.groupby(["dataset", "seed", "method"])[cols].mean()   
+    
 
     per_execution = stitch_executed_results()
 
     print(per_execution)
     print(per_seed.groupby(['dataset', 'method']).mean())
+    print(per_seed.groupby(['dataset', 'method']).std())
 
     graph_pass_k_data(per_seed, per_execution)
     graph_entropy_k_data(per_seed)
