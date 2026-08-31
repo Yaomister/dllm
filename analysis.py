@@ -68,7 +68,7 @@ markers_ = ["o", "s", "^", "D", "v", "P", "*"]
 shown_methods = ["Cos", "TLC 1",  "TLC 0.55", "Linear",  "Inverse"]
 
 
-def graph_entropy_k_data(per_seed, ):
+def graph_entropy_k_data(per_seed):
     avg = per_seed.groupby(['dataset', 'method']).mean()
     datasets = avg.index.get_level_values("dataset").unique()
 
@@ -125,29 +125,41 @@ def graph_pass_k_data(per_seed, per_execution):
     fig.savefig("pass_at_k.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-    
-
 if __name__ == "__main__":
     stitch_executed_results()
-
     df = stitch_results()
+
     print(df.groupby(["dataset", "method", "problem"]).size().value_counts()) 
+    pooled = df.groupby(["dataset", "method", "problem"]).agg(
+        c=("c", "sum"),
+        rows = ("c", "size"),
+        answers=("answers", lambda s: [a for lst in s for a in lst]),
+    )
+
+    pooled["n"] = pooled['rows'] * N 
+    
+    for path in glob.glob("results/execution_results_*.json"):
+        data = json.load(open(path))
+        print(os.path.basename(path))
+        for method, runs in data.items():
+            ids = {r["task_id"] for r in runs}
+            print(f"  {method}: {len(ids)} tasks, {len(runs)} runs")
 
     for k in K:
-        df[f"pass@{k}"] = df['c'].apply(lambda c : calculate_pass_k(N, k, c))
-        df[f"entropy@{k}"] = df['answers'].apply(lambda a : calculate_entropy_k(a, k))
+        pooled[f"pass@{k}"] = [
+            calculate_pass_k(n, k, c) if k <= n else np.nan
+            for n, c in zip(pooled["n"], pooled["c"])
+        ]
+        pooled[f"entropy@{k}"] = pooled["answers"].apply(lambda a: calculate_entropy_k(a, k))
 
     cols = [f'pass@{k}' for k in K] + [f'entropy@{k}' for k in K]
-    per_seed = df.groupby(["dataset", "seed", "method"])[cols].mean()   
+    per_problem = pooled[cols]  
     
 
     per_execution = stitch_executed_results()
 
-    print(per_execution)
-    print(per_seed.groupby(['dataset', 'method']).mean())
-    print(per_seed.groupby(['dataset', 'method']).std())
 
-    graph_pass_k_data(per_seed, per_execution)
-    graph_entropy_k_data(per_seed)
+    graph_pass_k_data(per_problem, per_execution)
+    graph_entropy_k_data(per_problem)
 
 

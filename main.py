@@ -13,13 +13,13 @@ from calculations import calculate_pass_k
 
 
 methods = [
-    # ("Low Confidence",    ConstantScheduler, (0.0, 0.0)),
-    # ("TLC 0.55", ConstantScheduler, (0.55, 0.55)),
-    # ("TLC 1",   ConstantScheduler, (1.0, 1.0)),
-    # ("Linear",        LinearScheduler,   (1.0, 0.1)),
+    ("Low Confidence",    ConstantScheduler, (0.0, 0.0)),
+    ("TLC 0.55", ConstantScheduler, (0.55, 0.55)),
+    ("TLC 1",   ConstantScheduler, (1.0, 1.0)),
+    ("Linear",        LinearScheduler,   (1.0, 0.1)),
     ("Cos",           CosScheduler,      (1.0, 0.1)),
     ("Inverse",          InverseScheduler,      (1.0, 0.1)),
-    # ("Autoregressive",        None,              None),
+    ("Autoregressive",        None,              None),
 ]
 
 def add_gumbel_noise(logits, temp):
