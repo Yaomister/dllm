@@ -12,6 +12,19 @@ from calculations import calculate_pass_k
 from argparse import ArgumentParser
 
 
+re_name_expected   = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
+re_name_generated = re.compile(r"^def\s+(\w+)", re.M)
+to_skip   = {"assert","math","isclose","abs","len","set","sorted","list","tuple",
+          "str","int","float","round","all","any","print","type","dict","map","filter"}
+
+
+def match_signature(completion, row):
+    expected = next((n for t in row["test_list"] for n in re_name_expected.findall(t) if n not in to_skip), None)
+    defined  = set(re_name_generated.findall(completion))
+    if not expected or expected in defined or len(defined) != 1:
+        return completion
+    return completion + f"\n{expected} = {next(iter(defined))}\n"
+
 def build_humaneval(problem, code):
      return problem["prompt"] + code + "\n" + problem["test"] + "\n" + f"check({problem['entry_point']})"
         
@@ -121,7 +134,10 @@ if __name__ == "__main__":
         method_dict = by_method[method]
         for task_id in method_dict:
             for completion in method_dict[task_id]:
-                program = build(problems[task_id], completion)
+                row = problems[task_id]
+                if args.dataset == "mbpp":
+                    completion = match_signature(completion, row)
+                program = build(row, completion)
                 res[method].append(execute(program, task_id, args.timeout))
             
 
