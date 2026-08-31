@@ -13,13 +13,13 @@ from calculations import calculate_pass_k
 
 
 methods = [
-    # ("Low Confidence",    ConstantScheduler, (0.0, 0.0)),
+    ("Low Confidence",    ConstantScheduler, (0.0, 0.0)),
     ("TLC 0.55", ConstantScheduler, (0.55, 0.55)),
-    # ("TLC 1",   ConstantScheduler, (1.0, 1.0)),
-    # ("Linear",        LinearScheduler,   (1.0, 0.1)),
-    # ("Cos",           CosScheduler,      (1.0, 0.1)),
-    # ("Inverse",          InverseScheduler,      (1.0, 0.1)),
-    # ("Autoregressive",        None,              None),
+    ("TLC 1",   ConstantScheduler, (1.0, 1.0)),
+    ("Linear",        LinearScheduler,   (1.0, 0.1)),
+    ("Cos",           CosScheduler,      (1.0, 0.1)),
+    ("Inverse",          InverseScheduler,      (1.0, 0.1)),
+    ("Autoregressive",        None,              None),
 ]
 
 def add_gumbel_noise(logits, temp):
@@ -283,7 +283,7 @@ def grade(prediction, answer, dataset_name):
         return hit and hit[-1] == correct_answer
 
 
-def main(seed, dataset_name, batch, batch_size):
+def main(seed, dataset_name, batch, batch_size, methods_to_run):
 
     print("CUDA available:", torch.cuda.is_available())
     print("device count:", torch.cuda.device_count())
@@ -328,7 +328,10 @@ def main(seed, dataset_name, batch, batch_size):
     BATCH = 8    
 
     print(f"Starting experiments")
+    only = [m.strip() for m in methods_to_run.split(",")] if methods_to_run else None
     for name, cls, args in methods:
+        if only and name not in only:
+            continue
         scheduler_obj = cls(args[0], args[1], total_steps) if cls else None
         remasking = name if name in ("Margin", "Autoregressive") else "Scheduler"
         samples = [[] for _ in range(N)]
@@ -412,6 +415,8 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', required=True)
     parser.add_argument("--batch", type=int, default=0)
     parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--methods", default=None, help="comma-separated, e.g. 'Inverse,Linear'")
+
     args = parser.parse_args()
     
-    main(args.seed, args.dataset, args.batch, args.batch_size)
+    main(args.seed, args.dataset, args.batch, args.batch_size, args.methods)

@@ -3,6 +3,7 @@ import os
 import glob
 import json
 import pandas
+import collections
 import numpy as np
 from itertools import cycle
 import matplotlib.pyplot as plt
