@@ -12,6 +12,7 @@ from calculations import calculate_pass_k
 from argparse import ArgumentParser
 
 
+
 re_name_expected   = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
 re_name_generated = re.compile(r"^def\s+(\w+)", re.M)
 to_skip   = {"assert","math","isclose","abs","len","set","sorted","list","tuple",

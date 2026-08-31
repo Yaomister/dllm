@@ -2,6 +2,7 @@ import math
 from .scheduler import Scheduler
 
 
+# The inverse linear scheduler.
 class InverseScheduler(Scheduler):
     def get_temperature(self, step: int):
         progress = self.get_progress(step)

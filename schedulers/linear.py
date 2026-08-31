@@ -1,7 +1,7 @@
 import math
 from .scheduler import Scheduler
 
-
+# The linear scheduler.
 class LinearScheduler(Scheduler):
     def get_temperature(self, step: int):
         progress = self.get_progress(step)

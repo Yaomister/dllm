@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+# Base class for schedulers.
 class Scheduler(ABC):
 
     def __init__(self, max_temp, min_temp, total_steps):

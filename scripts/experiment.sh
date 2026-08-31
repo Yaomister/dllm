@@ -17,7 +17,6 @@ DATASET=$1
 idx=$SLURM_ARRAY_TASK_ID
 batch=$(( idx % NUM_BATCHES ))
 rest=$(( idx / NUM_BATCHES ))
-d=$(( rest % 2 ))
 s=$(( rest / 2 ))
 
 mkdir -p logs
@@ -25,7 +24,6 @@ mkdir -p logs
 source /home/yao.eric/dllm-tpos-schedules/.venv/bin/activate
 
 export HF_HOME=/scratch/yao.eric/hf_cache/huggingface
-
 
 python -u main.py \
   --seed ${SEEDS[$s]} \
