@@ -17,6 +17,7 @@ N = 16
 
 
 def stitch_executed_results():
+    """Put the results from the executed MBPP and HumanEval code all in one dataframe."""
     records = {}
     for path in glob.glob("results/execution_results_*.json"):
         m = re.match(r"execution_results_(\w+)\.json$", os.path.basename(path))
@@ -46,6 +47,7 @@ def stitch_executed_results():
         
 
 def stitch_results():
+    """Put the results from Math and GSM8k all into one dataframe."""
     records = []
     for path in glob.glob("results/results_*_*_batch*.json"):
         name  = os.path.basename(path)
@@ -70,6 +72,7 @@ shown_methods = ["Cos", "TLC 1",  "TLC 0.55", "Linear",  "Inverse"]
 
 
 def graph_entropy_k_data(per_seed):
+    """Plot the graph for Entropy@k."""
     avg = per_seed.groupby(['dataset', 'method']).mean()
     datasets = avg.index.get_level_values("dataset").unique()
 
@@ -97,6 +100,7 @@ def graph_entropy_k_data(per_seed):
     plt.close(fig)
 
 def graph_pass_k_data(per_seed, per_execution):
+    """Plot the graph for Pass@k."""
     avg = per_seed.groupby(['dataset', 'method']).mean()
     datasets = list(avg.index.get_level_values("dataset").unique()) + list(per_execution.index.get_level_values("dataset").unique())
 
@@ -156,9 +160,7 @@ if __name__ == "__main__":
     cols = [f'pass@{k}' for k in K] + [f'entropy@{k}' for k in K]
     per_problem = pooled[cols]  
     
-
     per_execution = stitch_executed_results()
-
 
     graph_pass_k_data(per_problem, per_execution)
     graph_entropy_k_data(per_problem)

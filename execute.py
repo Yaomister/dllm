@@ -11,15 +11,19 @@ from collections import defaultdict
 from calculations import calculate_pass_k
 from argparse import ArgumentParser
 
-
-
+# the regex for the expected method names
 re_name_expected   = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
+
+# the regex for the generated method names
 re_name_generated = re.compile(r"^def\s+(\w+)", re.M)
+
+# in case the generated methods are wrapped in some Python method, so we skip those.
 to_skip   = {"assert","math","isclose","abs","len","set","sorted","list","tuple",
           "str","int","float","round","all","any","print","type","dict","map","filter"}
 
-
 def match_signature(completion, row):
+    """Add a statement to the end of the generated code to equate the two method name aliases."""
+
     expected = next((n for t in row["test_list"] for n in re_name_expected.findall(t) if n not in to_skip), None)
     defined  = set(re_name_generated.findall(completion))
     if not expected or expected in defined or len(defined) != 1:
@@ -27,9 +31,11 @@ def match_signature(completion, row):
     return completion + f"\n{expected} = {next(iter(defined))}\n"
 
 def build_humaneval(problem, code):
+     """Build the HumanEval prompt."""
      return problem["prompt"] + code + "\n" + problem["test"] + "\n" + f"check({problem['entry_point']})"
         
 def build_mbpp(problem, code):
+    """Build the MBPP prompt."""
     parts = [code]
     if problem.get("test_setup_code"):
         parts.append(problem["test_setup_code"])
@@ -57,6 +63,7 @@ def chdir(root):
         os.chdir(cwd)
 
 def check_correctness(program, results):
+    """Check whether the generated process ran."""
     with create_tempdir():
         try:
             exec_globals = {}
@@ -72,8 +79,10 @@ def check_correctness(program, results):
         
 
 def execute(program, task_id, timeout):
+    """Run the generated code in subprocesses."""
 
     manager = multiprocessing.Manager()
+    
     q = manager.Queue()
 
     p = multiprocessing.Process(target=check_correctness, args=(program, q))

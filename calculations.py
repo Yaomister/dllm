@@ -1,7 +1,7 @@
 import numpy as np
-from collections import Counter
 
 def calculate_entropy_k(answers, k, n_boot=1000, rng=np.random.default_rng(0)):
+    """calculate the Entropy@k"""
     a = np.asarray(answers)
     n = len(a)
     if k > n:
@@ -15,8 +15,9 @@ def calculate_entropy_k(answers, k, n_boot=1000, rng=np.random.default_rng(0)):
         h = -np.where(p > 0, p * np.log(p), 0).sum(axis=1)
     return float(h.mean())
 
-
 def calculate_pass_k(n, k, c):
+    """calculate the unbiased Pass@k"""
+
     # n = how many samples you generate
     # c = how many of the samples came out correct
     # k = how many attemps we're asking about

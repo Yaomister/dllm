@@ -11,7 +11,7 @@ from transformers import AutoModel, AutoTokenizer
 from schedulers import CosScheduler, LinearScheduler, ConstantScheduler, InverseScheduler
 from calculations import calculate_pass_k
 
-
+# the T_pos methods we're testing
 methods = [
     ("Low Confidence",    ConstantScheduler, (0.0, 0.0)),
     ("TLC 0.55", ConstantScheduler, (0.55, 0.55)),
@@ -23,6 +23,8 @@ methods = [
 ]
 
 def add_gumbel_noise(logits, temp):
+    """adds gumbel's noise to a tensor of logits."""
+
     # use gumbel's maximum instead of sampling from a probability distribution
 
     # the idea is we add a random amount of noise (kick) to each value and take the argmax, the maxium value after the noise is equivallent to drawing from a softmax distribution.
@@ -35,6 +37,7 @@ def add_gumbel_noise(logits, temp):
 
 
 def get_num_transfer_tokens(mask_index, steps):
+    """Returns the number of tokens to unmask per unmasking step."""
 
     # count the number of mask tokens left
     mask_num = mask_index.sum(dim=1, keepdim = True)
@@ -57,7 +60,8 @@ def get_num_transfer_tokens(mask_index, steps):
 
     
 def contains_token_squence(tokens, sequence):
-    # checks whether a shorter sequence of tokens exists in a longer sequence of tokens
+    """Checks whether a shorter sequence of tokens exists in a longer sequence of tokens."""
+
     if sequence.numel() == 0 or tokens.numel() < sequence.numel():
         return False
     for start in range(tokens.numel() - sequence.numel() + 1):
@@ -67,14 +71,18 @@ def contains_token_squence(tokens, sequence):
 
 
 def get_next_sequence_token_id(tokens, position, sequence, context_start):
+    """Returns the next token in the unmasking sequence."""
+
     # when we're half way through writing a target phrase, this gets the next token in it
     max_prefix_length = min(sequence.numel() - 1, position - context_start)
     for prefix_length in range(max_prefix_length, 0, -1):
+        # checks for the place we're currently at
         if torch.equal(tokens[position - prefix_length:position], sequence[:prefix_length]):
             return sequence[prefix_length].item()
     return sequence[0].item()
 
 def apply_end_think_logit_boost(logits, tokens, candidate_mask_index, context_start, total_gen_length, end_think_token_ids = None, end_think_logit_boost=0., end_think_boost_power = 2.0):
+    """Gradually encourages the model to spit out a end thinking token."""
 
     # if the feature isnt turned on, do nothing
     if end_think_logit_boost <= 0 or not end_think_token_ids or total_gen_length <= 0:
@@ -122,6 +130,7 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
              confidence_eos_eot_inf=False, end_think_token_ids=None, end_think_logit_boost=0.,
              end_think_boost_power=2., end_think_context_start=None,
              end_think_total_gen_length=None):
+    """Generate the sequence."""
     # temperature = T_token, remasting = T_pos, but they only offer two extremes for T_token, either greedy, or random
 
     base_model = getattr(model, "module", model)
@@ -132,7 +141,7 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
     if 'illada' in model_name.lower():
         assert prompt.shape[0] == 1, 'iLLaDA currently does not support padded batch generation.'
 
-    # fill the entire thing with mask tokens
+    # fill the entire thing with mask tokens, this is the blank slate
     x = torch.full((prompt.shape[0], prompt.shape[1] + gen_length), mask_id, dtype= torch.long).to(model.device)
 
     # paste the prompt in front of all the masked tokens
@@ -149,6 +158,7 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
     assert gen_length % block_length == 0
     num_blocks = gen_length // block_length
 
+    # the number of steps needs to be able to be equally distributed amongst the blocks
     assert steps % num_blocks == 0
     steps = steps // num_blocks
 
@@ -179,11 +189,15 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 
             # restricts the blank-set to only this block. So basically, it is set to True only the still-blank positions inside the current block
             candidate_mask_index = mask_index.clone()
+            # set all the possible mask positions to false
             candidate_mask_index[:, :block_start] = False
             candidate_mask_index[:, block_end:] = False
 
             # the forward pass
             if cfg_scale > 0.0:
+                # cfg is classifier free guidence, you bascially get two sets of logits, one with the model knowing the prompt, and one without the model knowing the prompt, subtract the two to get the prompts influcence, and you amplify that influence.
+                
+                # mask out the prompts
                 un_x = x.clone()
                 un_x[prompt_index] = mask_id
                 x_ = torch.cat([x, un_x], dim=0)
@@ -209,7 +223,6 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
                 end_think_boost_power=end_think_boost_power
             )
 
-            # forbut the model from selecting end of sequence tokens
             if logits_eos_inf:
                 logits[:, :, 126081] = -torch.inf
 
@@ -220,7 +233,8 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 
             if confidence_eos_eot_inf:
                 logits_with_noise[:, :, 126081] = logits[:, :, 126348] = -torch.inf
-            
+
+            # the scheduler kicks in
             if remasking == 'Scheduler' or remasking == "Autoregressive":
                 # grab the position with the highest confidence
                 p = F.softmax(logits, dim=-1)
@@ -239,10 +253,12 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 
             transfer_index = torch.zeros_like(x0, dtype=torch.bool, device=x0.device)
 
+            # the positional temperature
             position_temperature = scheduler.get_temperature(num_block * steps + i) if remasking == 'Scheduler' else None
 
             for j in range(confidence.shape[0]):
                 k = num_transfer_tokens[j, i].item()
+
                 # grab the k highest confidence positions, this is the greedy selection
                 conf_j = confidence[j]
           
@@ -250,8 +266,10 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
                 k = min(k, valid_indexes.numel())
                 if remasking == "Scheduler":
                     if (position_temperature <= 1e-6):
+                        # just take the top k if the T_pos is already lows
                         _, selected_index = torch.topk(conf_j, k)
                     else:
+                        # apply the positional temperature
                         w = conf_j[valid_indexes] ** (1 / position_temperature)
                         w = torch.nan_to_num(w)
                         if (w.sum() == 0):
@@ -270,11 +288,13 @@ def generate(model, prompt, scheduler, attention_mask=None, steps=128, gen_lengt
 
 
 def extract_code(text):
+    """Extract the code from the generated response (for HumanEval and MBPP)."""
     blocks = re.findall(r"```(?:python)?\n(.*?)```", text, re.DOTALL)
     return max(blocks, key=len) if blocks else text
 
 
 def grade(prediction, answer, dataset_name):
+    """Grade the responses based on the dataset."""
     if dataset_name == "math":
         return verify(parse(prediction), parse(answer))
     else:
@@ -289,6 +309,7 @@ def main(seed, dataset_name, batch, batch_size, methods_to_run):
     print("device count:", torch.cuda.device_count())
     print("torch built for CUDA:", torch.version.cuda)
 
+    # make it reproducable
     torch.manual_seed(seed)
 
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.mps.is_available() else "cpu"
@@ -328,10 +349,12 @@ def main(seed, dataset_name, batch, batch_size, methods_to_run):
     BATCH = 8    
 
     print(f"Starting experiments")
-    only = [m.strip() for m in methods_to_run.split(",")] if methods_to_run else None
+
+    available_methods_to_run = [m.strip() for m in methods_to_run.split(",")] if methods_to_run else None
     for name, cls, args in methods:
-        if only and name not in only:
+        if available_methods_to_run and name not in available_methods_to_run:
             continue
+        
         scheduler_obj = cls(args[0], args[1], total_steps) if cls else None
         remasking = name if name in ("Margin", "Autoregressive") else "Scheduler"
         samples = [[] for _ in range(N)]
@@ -340,6 +363,7 @@ def main(seed, dataset_name, batch, batch_size, methods_to_run):
 
             prompt_texts = []
 
+            # prompts are different based on the datasets
             for row in chunk:
                 if dataset_name == "math":
                     prompt_texts.append(row["problem"])
@@ -393,7 +417,8 @@ def main(seed, dataset_name, batch, batch_size, methods_to_run):
                 C.append(c)
 
             A = [[str(parse(samples[n][i])) for n in range(N)] for i in range(len(dataset))]
- 
+
+            # store the results
             results["method"][name] = {
                 "problem_indices": problem_indices,
                 "c_counts": C,
