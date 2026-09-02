@@ -3,13 +3,12 @@ import os
 import glob
 import json
 import pandas
-import collections
 import numpy as np
 from itertools import cycle
 import matplotlib.pyplot as plt
 from collections import defaultdict
-from calculations import  calculate_pass_k, calculate_entropy_k
 from matplotlib.ticker import ScalarFormatter, NullFormatter
+from calculations import  calculate_pass_k, calculate_entropy_k
 
 
 K = [1, 2, 4, 8, 16]
